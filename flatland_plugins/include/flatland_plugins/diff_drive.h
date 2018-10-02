@@ -74,7 +74,7 @@ class DiffDrive : public flatland_server::ModelPlugin {
   tf::TransformBroadcaster tf_broadcaster;  ///< For publish ROS TF
   bool enable_odom_pub_;          ///< YAML parameter to enable odom publishing
   bool enable_ground_truth_pub_;  ///< YAML parameter to enable ground truth
-                                  ///publishing
+                                  /// publishing
   bool enable_twist_pub_;         ///< YAML parameter to enable twist publishing
   bool enable_tf_pub_;            ///< YAML parameter to enable twist publishing
 
