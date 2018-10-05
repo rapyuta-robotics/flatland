@@ -50,6 +50,7 @@
 #include <flatland_server/types.h>
 #include <flatland_server/world.h>
 #include <flatland_server/yaml_reader.h>
+#include <flatland_server/message.h>
 #include <ros/ros.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>
@@ -258,7 +259,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                  abs_path.string().c_str());
 
   Model *m =
-      Model::MakeModel(physics_world_, &cfr_, abs_path.string(), ns, name);
+      Model::MakeModel(this, physics_world_, &cfr_, abs_path.string(), ns, name);
   m->TransformAll(pose);
 
   try {

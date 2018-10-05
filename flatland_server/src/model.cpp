@@ -51,12 +51,13 @@
 
 namespace flatland_server {
 
-Model::Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+Model::Model(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
              const std::string &ns, const std::string &name)
     : Entity(physics_world, name),
       namespace_(ns),
       cfr_(cfr),
-      viz_name_("model/" + name_) {}
+      viz_name_("model/" + name_),
+      world(world) {}
 
 Model::~Model() {
   for (unsigned int i = 0; i < joints_.size(); i++) {
@@ -74,13 +75,13 @@ Model::~Model() {
   DebugVisualization::Get().Reset(viz_name_);
 }
 
-Model *Model::MakeModel(b2World *physics_world, CollisionFilterRegistry *cfr,
+Model *Model::MakeModel(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
                         const std::string &model_yaml_path,
                         const std::string &ns, const std::string &name) {
   YamlReader reader(model_yaml_path);
   reader.SetErrorInfo("model " + Q(name));
 
-  Model *m = new Model(physics_world, cfr, ns, name);
+  Model *m = new Model(world, physics_world, cfr, ns, name);
 
   m->plugins_reader_ = reader.SubnodeOpt("plugins", YamlReader::LIST);
 

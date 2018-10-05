@@ -57,6 +57,7 @@
 
 namespace flatland_server {
 
+class World;
 class ModelBody;
 class Joint;
 
@@ -65,6 +66,9 @@ class Joint;
  * environment such robots, chairs, deskes etc.
  */
 class Model : public Entity {
+ private:
+  World *world;
+
  public:
   std::string namespace_;            ///< namespace of the model
   std::vector<ModelBody *> bodies_;  ///< list of bodies in the model
@@ -79,7 +83,7 @@ class Model : public Entity {
    * @param[in] cfr Collision filter registry
    * @param[in] name Name of the model
    */
-  Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Model(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
 
   /**
@@ -111,6 +115,12 @@ class Model : public Entity {
    * @return pointer to the body, nullptr indicates body cannot be found
    */
   ModelBody *GetBody(const std::string &name);
+
+  /**
+   * @brief Returns the
+   * @return pointer to the world, nullptr indicates world cannot be found
+   */
+  ModelBody *GetWorld();
 
   /**
    * @brief Get a body in the model using its name
@@ -190,7 +200,8 @@ class Model : public Entity {
    * @param[in] name Name of the model
    * @return A new model
    */
-  static Model *MakeModel(b2World *physics_world, CollisionFilterRegistry *cfr,
+  static Model *MakeModel(World *world, b2World *physics_world,
+                          CollisionFilterRegistry *cfr,
                           const std::string &model_yaml_path,
                           const std::string &ns, const std::string &name);
 };
