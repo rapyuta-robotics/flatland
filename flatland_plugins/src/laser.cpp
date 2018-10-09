@@ -108,7 +108,7 @@ void Laser::OnInitialize(const YAML::Node &config) {
     laser_scan_.intensities.resize(0);
   laser_scan_.header.seq = 0;
   laser_scan_.header.frame_id =
-          tf::resolve("", GetModel()->NameSpaceTF(frame_id_));
+      tf::resolve("", GetModel()->NameSpaceTF(frame_id_));
 
   // Broadcast transform between the body and laser
   tf::Quaternion q;
