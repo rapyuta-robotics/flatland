@@ -17,6 +17,7 @@ Publisher<T>& MessageServer::advertise(MessageType type) {
     // Find the topic
     MessageTopic<T> topic = messageTopics[type];
     Publisher<T> publisher;
+    publisher.topic = topic;
 
     topic.publishers.insert(publisher);
     return publisher;
@@ -34,6 +35,7 @@ Subscriber<T>& MessageServer::subscribe(MessageType type) {
     // Find the topic
     MessageTopic<T> topic = messageTopics[type];
     Subscriber<T> subscriber;
+    subscriber.topic = topic;
 
     topic.subscribers.insert(subscriber);
     return subscriber;
@@ -41,7 +43,13 @@ Subscriber<T>& MessageServer::subscribe(MessageType type) {
 
 template <class T>
 void Publisher::publish(T) {
+    topic->messages.push(T);
+}
+
+template <class T>
+void Subscriber::subscribe(T) {
 
 }
+
 
 }

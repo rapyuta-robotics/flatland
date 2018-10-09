@@ -8,7 +8,11 @@
 namespace flatland_server {
 
     class MessageServer;
-    class MessageTopic;
+    template <class T>
+    class Subscriber;
+    template <class T>
+    class Publisher;
+    class MessageTopicBase {};
 
     template <class T>
     class Message {
@@ -16,19 +20,10 @@ namespace flatland_server {
         T type;
     };
 
-    template <class T>
-    class Subscriber {
-        MessageTopic* server;
-        void publish(T);
+    enum MessageType {
+        RobotAction,
+        HumanAction
     };
-
-    template <class T>
-    class Publisher {
-        MessageTopic* server;
-        void publish(T);
-    };
-
-    class MessageTopicBase {};
 
     template <class T>
     class MessageTopic : MessageTopicBase {
@@ -38,10 +33,18 @@ namespace flatland_server {
         std::queue<T> messages;
     };
 
-    enum MessageType {
-        RobotAction,
-        HumanAction
+    template <class T>
+    class Subscriber {
+        MessageTopic<T>* topic;
+        void subscribe(T);
     };
+
+    template <class T>
+    class Publisher {
+        MessageTopic<T>* topic;
+        void publish(T);
+    };
+
 
     class MessageServer {
     public:
