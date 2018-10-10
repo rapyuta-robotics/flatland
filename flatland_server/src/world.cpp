@@ -50,7 +50,6 @@
 #include <flatland_server/types.h>
 #include <flatland_server/world.h>
 #include <flatland_server/yaml_reader.h>
-#include <flatland_server/message.h>
 #include <ros/ros.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>

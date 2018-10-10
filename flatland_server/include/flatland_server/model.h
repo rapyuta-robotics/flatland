@@ -52,14 +52,15 @@
 #include <flatland_server/joint.h>
 #include <flatland_server/model_body.h>
 #include <flatland_server/yaml_reader.h>
+#include <flatland_server/message_system/message_server.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>
 
 namespace flatland_server {
 
-class World;
 class ModelBody;
 class Joint;
+class World;
 
 /**
  * This class defines a Model. It can be used to repsent any object in the
@@ -67,7 +68,7 @@ class Joint;
  */
 class Model : public Entity {
  private:
-  World *world;
+  flatland_server::World *world;
 
  public:
   std::string namespace_;            ///< namespace of the model
@@ -76,7 +77,6 @@ class Model : public Entity {
   YamlReader plugins_reader_;        ///< for storing plugins when paring YAML
   CollisionFilterRegistry *cfr_;     ///< Collision filter registry
   std::string viz_name_;             ///< used for visualization
-
   /**
    * @brief Constructor for the model
    * @param[in] physics_world Box2D physics world
@@ -120,7 +120,13 @@ class Model : public Entity {
    * @brief Returns the
    * @return pointer to the world, nullptr indicates world cannot be found
    */
-  ModelBody *GetWorld();
+  World *GetWorld();
+
+  /**
+    * @brief Returns the
+    * @return pointer to the world, nullptr indicates world cannot be found
+    */
+  MessageServer *GetMessageServer();
 
   /**
    * @brief Get a body in the model using its name

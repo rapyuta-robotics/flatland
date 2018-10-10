@@ -6,12 +6,13 @@ MessageServer::MessageServer() {}
 MessageServer::~MessageServer() {}
 
 template <class T>
-Publisher<T>& MessageServer::advertise(MessageType type) {
+Publisher<T>& MessageServer::advertise(MessageType type, std::string source) {
     // Add new topic if it doesn't currently exist
     if (messageTopics.find(type) == messageTopics.end()) {
         MessageTopic<T> newTopic;
+        newTopic.type = type;
+        newTopic.source = source;
         messageTopics.insert({type, newTopic});
-        newTopic.topic_name = type;
     }
 
     // Find the topic
@@ -41,14 +42,15 @@ Subscriber<T>& MessageServer::subscribe(MessageType type) {
     return subscriber;
 }
 
-template <class T>
-void Publisher::publish(T) {
-    topic->messages.push(T);
+
+template< class T>
+void Publisher<T>::publish(T t) {
+    topic->messages.push(t);
 }
 
 template <class T>
-void Subscriber::subscribe(T) {
-
+T Subscriber<T>::receive() {
+    return topic->messages.pop();
 }
 
 

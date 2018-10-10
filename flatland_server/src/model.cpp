@@ -48,6 +48,7 @@
 #include <flatland_server/exceptions.h>
 #include <flatland_server/geometry.h>
 #include <flatland_server/model.h>
+#include <flatland_server/world.h>
 
 namespace flatland_server {
 
@@ -161,6 +162,14 @@ ModelBody *Model::GetBody(const std::string &name) {
     }
   }
   return nullptr;
+}
+
+World *Model::GetWorld() {
+  return world;
+}
+
+MessageServer *Model::GetMessageServer() {
+    return &GetWorld()->message_server;
 }
 
 Joint *Model::GetJoint(const std::string &name) {
