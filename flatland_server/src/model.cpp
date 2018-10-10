@@ -169,7 +169,7 @@ World *Model::GetWorld() {
 }
 
 MessageServer *Model::GetMessageServer() {
-    return &GetWorld()->message_server;
+    return &(GetWorld()->message_server);
 }
 
 Joint *Model::GetJoint(const std::string &name) {
