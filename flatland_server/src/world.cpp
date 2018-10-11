@@ -107,6 +107,8 @@ void World::Update(Timekeeper &timekeeper) {
     plugin_manager_.AfterPhysicsStep(timekeeper);
   }
   int_marker_manager_.update();
+
+  message_server.clean_old_topics();
 }
 
 void World::BeginContact(b2Contact *contact) {

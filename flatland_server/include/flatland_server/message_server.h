@@ -10,7 +10,10 @@
 namespace flatland_server {
 
 class MessageServer;
-class MessageTopicBase {};
+class MessageTopicBase {
+public:
+    virtual void clean_old_messages() = 0;
+};
 
 template <class T>
 class MessageTopic : public MessageTopicBase {
@@ -19,6 +22,8 @@ class MessageTopic : public MessageTopicBase {
   std::deque<std::pair<ros::Time, T> > messages_;
 
   MessageTopic(ros::Duration message_life) : message_life_(message_life) {}
+
+  void clean_old_messages() override;
 };
 
 template <class T>
@@ -51,6 +56,8 @@ class MessageServer {
   template <class T>
   Publisher<T> advertise(std::string name,
                          ros::Duration message_lifetime = ros::Duration(1));
+
+  void clean_old_topics();
 };
 
 template <class T>
@@ -87,16 +94,6 @@ Publisher<T> MessageServer::advertise(std::string name,
 template <class T>
 void Publisher<T>::publish(T& t) {
   topic_->messages_.push_front({ros::Time::now(), t});
-
-  // Delete old messages
-  while (!topic_->messages_.empty()) {
-    std::pair<ros::Time, T> msg = topic_->messages_.back();
-    if (msg.first < ros::Time::now() - topic_->message_life_) {
-      topic_->messages_.pop_back();
-      continue;
-    }
-    break;
-  }
 }
 
 template <class T>
@@ -106,6 +103,22 @@ T* Subscriber<T>::receive() {
     return &t->second;
   }
   return nullptr;
+}
+
+template <class T>
+void MessageTopic<T>::clean_old_messages() {
+    ROS_INFO_STREAM(messages_.size());
+
+    ros::Time now = ros::Time::now();
+    // Delete old messages
+    while (!messages_.empty()) {
+        std::pair<ros::Time, T> msg = messages_.back();
+        if (msg.first < now - message_life_) {
+            messages_.pop_back();
+            continue;
+        }
+        break;
+    }
 }
 
 }
