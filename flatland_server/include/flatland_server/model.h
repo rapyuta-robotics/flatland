@@ -52,7 +52,7 @@
 #include <flatland_server/joint.h>
 #include <flatland_server/model_body.h>
 #include <flatland_server/yaml_reader.h>
-#include <flatland_server/message_system/message_server.h>
+#include <flatland_server/message_server.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>
 

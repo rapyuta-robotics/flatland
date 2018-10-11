@@ -54,7 +54,7 @@
 #include <flatland_server/model.h>
 #include <flatland_server/plugin_manager.h>
 #include <flatland_server/timekeeper.h>
-#include <flatland_server/message_system/message_server.h>
+#include <flatland_server/message_server.h>
 
 #include <map>
 #include <string>
