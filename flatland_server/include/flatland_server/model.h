@@ -120,7 +120,7 @@ class Model : public Entity {
    * @brief Returns the
    * @return pointer to the world, nullptr indicates world cannot be found
    */
-  World *GetWorld();
+  World *GetWorld() const;
 
   /**
     * @brief Returns the

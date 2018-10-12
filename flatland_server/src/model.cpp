@@ -164,7 +164,7 @@ ModelBody *Model::GetBody(const std::string &name) {
   return nullptr;
 }
 
-World *Model::GetWorld() {
+World *Model::GetWorld() const {
   return world;
 }
 
