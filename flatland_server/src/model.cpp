@@ -164,12 +164,12 @@ ModelBody *Model::GetBody(const std::string &name) {
   return nullptr;
 }
 
-World *Model::GetWorld() const {
-  return world;
+World& Model::GetWorld() const {
+  return *world;
 }
 
-MessageServer *Model::GetMessageServer() {
-    return &(GetWorld()->message_server);
+MessageServer& Model::GetMessageServer() const {
+    return (GetWorld().message_server);
 }
 
 Joint *Model::GetJoint(const std::string &name) {

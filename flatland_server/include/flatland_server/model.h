@@ -120,13 +120,13 @@ class Model : public Entity {
    * @brief Returns the
    * @return pointer to the world, nullptr indicates world cannot be found
    */
-  World *GetWorld() const;
+  World& GetWorld() const;
 
   /**
     * @brief Returns the
     * @return pointer to the world, nullptr indicates world cannot be found
     */
-  MessageServer *GetMessageServer();
+  MessageServer& GetMessageServer() const;
 
   /**
    * @brief Get a body in the model using its name
