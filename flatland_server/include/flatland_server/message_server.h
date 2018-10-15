@@ -19,31 +19,31 @@ class SubscriberBase {};
 
 template <class T>
 class MessageView {
-  MessageView(std::deque<std::pair<ros::Time, T>>& t)
+  MessageView(const std::deque<std::pair<ros::Time, T>>& t)
       : begin_(t.begin()),
         end_(t.end()),
         rbegin_(t.rbegin()),
         rend_(t.rend()) {}
-  MessageView(std::deque<std::pair<ros::Time, T>>& t, const ros::Time& start,
+  MessageView(const std::deque<std::pair<ros::Time, T>>& t, const ros::Time& start,
               const ros::Time& end)
       : MessageView(t) {
     filterTimeRange(start, end);
   }
 
-  typename std::deque<std::pair<ros::Time, T>>::iterator begin_;
-  typename std::deque<std::pair<ros::Time, T>>::iterator end_;
+  typename std::deque<std::pair<ros::Time, T>>::const_iterator begin_;
+  typename std::deque<std::pair<ros::Time, T>>::const_iterator end_;
 
-  typename std::deque<std::pair<ros::Time, T>>::reverse_iterator rbegin_;
-  typename std::deque<std::pair<ros::Time, T>>::reverse_iterator rend_;
+  typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator rbegin_;
+  typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator rend_;
 
  public:
-  typename std::deque<std::pair<ros::Time, T>>::iterator begin() {
+  typename std::deque<std::pair<ros::Time, T>>::const_iterator begin() {
     return begin_;
   }
-  typename std::deque<std::pair<ros::Time, T>>::iterator end() { return end_; }
+  typename std::deque<std::pair<ros::Time, T>>::const_iterator end() { return end_; }
 
   bool empty() const { return begin_ == end_; }
-  unsigned count() const;
+  unsigned size() const;
   void filterTimeRange(const ros::Time begin, const ros::Time end);
 
   MessageView() {}
@@ -65,8 +65,8 @@ class MessageTopic : public MessageTopicBase {
   const std::deque<std::pair<ros::Time, T>>& get_messages() const {
     return messages_;
   }
-  MessageView<T> get_message_view() { return MessageView<T>(messages_); }
-  MessageView<T> get_message_view(const ros::Time& start,
+  const MessageView<T> get_message_view() { return MessageView<T>(messages_); }
+  const MessageView<T> get_message_view(const ros::Time& start,
                                   const ros::Time& end) {
     return MessageView<T>(messages_, start, end);
   }
@@ -171,7 +171,7 @@ void Publisher<T>::publish(const T& t) {
 }
 
 template <class T>
-unsigned MessageView<T>::count() const {
+unsigned MessageView<T>::size() const {
   unsigned c = 0;
   for (auto it = this->begin_; it != this->end_; ++it) c++;
   return c;
