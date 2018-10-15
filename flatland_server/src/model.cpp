@@ -63,8 +63,7 @@ Model::Model(b2World *physics_world, CollisionFilterRegistry *cfr,
     : Entity(physics_world, name),
       namespace_(ns),
       cfr_(cfr),
-      viz_name_("model/" + name_),
-      world(world) {}
+      viz_name_("model/" + name_) {}
 
 Model::~Model() {
   for (unsigned int i = 0; i < joints_.size(); i++) {
