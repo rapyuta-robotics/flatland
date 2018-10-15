@@ -24,6 +24,11 @@ class MessageView {
         end_(t.end()),
         rbegin_(t.rbegin()),
         rend_(t.rend()) {}
+  MessageView(std::deque<std::pair<ros::Time, T>>& t,
+              const ros::Time& start, const ros::Time& end)
+      : MessageView(t) {
+    filterTimeRange(start, end);
+  }
 
   typename std::deque<std::pair<ros::Time, T>>::iterator begin_;
   typename std::deque<std::pair<ros::Time, T>>::iterator end_;
@@ -61,6 +66,10 @@ class MessageTopic : public MessageTopicBase {
     return messages_;
   }
   MessageView<T> get_message_view() { return MessageView<T>(messages_); }
+  MessageView<T> get_message_view(const ros::Time& start,
+                                  const ros::Time& end) {
+    return MessageView<T>(messages_, start, end);
+  }
 
   const T* get_latest_message() const;
   void add_new_message(const T& msg);
@@ -202,9 +211,8 @@ const T* Subscriber<T>::receiveLatest() const {
 
 template <class T>
 MessageView<T> Subscriber<T>::receive() {
-  MessageView<T> view = topic_->get_message_view();
   ros::Time now = ros::Time::now();
-  view.filterTimeRange(last_subscription_time, now);
+  MessageView<T> view = topic_->get_message_view(last_subscription_time, now);
   last_subscription_time = now;
   return view;
 }
