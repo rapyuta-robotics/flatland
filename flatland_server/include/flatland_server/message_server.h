@@ -24,8 +24,8 @@ class MessageView {
         end_(t.end()),
         rbegin_(t.rbegin()),
         rend_(t.rend()) {}
-  MessageView(std::deque<std::pair<ros::Time, T>>& t,
-              const ros::Time& start, const ros::Time& end)
+  MessageView(std::deque<std::pair<ros::Time, T>>& t, const ros::Time& start,
+              const ros::Time& end)
       : MessageView(t) {
     filterTimeRange(start, end);
   }

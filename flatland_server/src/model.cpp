@@ -76,7 +76,8 @@ Model::~Model() {
   DebugVisualization::Get().Reset(viz_name_);
 }
 
-Model *Model::MakeModel(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
+Model *Model::MakeModel(World *world, b2World *physics_world,
+                        CollisionFilterRegistry *cfr,
                         const std::string &model_yaml_path,
                         const std::string &ns, const std::string &name) {
   YamlReader reader(model_yaml_path);
@@ -164,12 +165,10 @@ ModelBody *Model::GetBody(const std::string &name) {
   return nullptr;
 }
 
-World& Model::GetWorld() const {
-  return *world;
-}
+World &Model::GetWorld() const { return *world; }
 
-MessageServer& Model::GetMessageServer() const {
-    return (GetWorld().message_server);
+MessageServer &Model::GetMessageServer() const {
+  return (GetWorld().message_server);
 }
 
 Joint *Model::GetJoint(const std::string &name) {

@@ -50,9 +50,9 @@
 #include <flatland_server/collision_filter_registry.h>
 #include <flatland_server/entity.h>
 #include <flatland_server/joint.h>
+#include <flatland_server/message_server.h>
 #include <flatland_server/model_body.h>
 #include <flatland_server/yaml_reader.h>
-#include <flatland_server/message_server.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>
 
@@ -77,12 +77,12 @@ class Model : public Entity {
   YamlReader plugins_reader_;        ///< for storing plugins when paring YAML
   CollisionFilterRegistry *cfr_;     ///< Collision filter registry
   std::string viz_name_;             ///< used for visualization
-  /**
-   * @brief Constructor for the model
-   * @param[in] physics_world Box2D physics world
-   * @param[in] cfr Collision filter registry
-   * @param[in] name Name of the model
-   */
+                                     /**
+                                      * @brief Constructor for the model
+                                      * @param[in] physics_world Box2D physics world
+                                      * @param[in] cfr Collision filter registry
+                                      * @param[in] name Name of the model
+                                      */
   Model(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
 
@@ -120,13 +120,13 @@ class Model : public Entity {
    * @brief Returns the
    * @return pointer to the world, nullptr indicates world cannot be found
    */
-  World& GetWorld() const;
+  World &GetWorld() const;
 
   /**
     * @brief Returns the
     * @return pointer to the world, nullptr indicates world cannot be found
     */
-  MessageServer& GetMessageServer() const;
+  MessageServer &GetMessageServer() const;
 
   /**
    * @brief Get a body in the model using its name

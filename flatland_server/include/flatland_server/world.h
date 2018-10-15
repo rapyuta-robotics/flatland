@@ -51,16 +51,16 @@
 #include <flatland_server/collision_filter_registry.h>
 #include <flatland_server/interactive_marker_manager.h>
 #include <flatland_server/layer.h>
+#include <flatland_server/message_server.h>
 #include <flatland_server/model.h>
 #include <flatland_server/plugin_manager.h>
 #include <flatland_server/timekeeper.h>
-#include <flatland_server/message_server.h>
 
 #include <map>
+#include <queue>
 #include <string>
 #include <string>
 #include <vector>
-#include <queue>
 
 namespace flatland_server {
 

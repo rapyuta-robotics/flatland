@@ -3,12 +3,8 @@
 namespace flatland_server {
 
 void MessageServer::clean_old_topics() {
-    for (auto& topic : messageTopics_) {
-        topic.second->clean_old_messages();
-    }
+  for (auto& topic : messageTopics_) {
+    topic.second->clean_old_messages();
+  }
 }
-
-
 }
-
-
