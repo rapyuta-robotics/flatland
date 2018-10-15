@@ -54,6 +54,12 @@ namespace flatland_server {
 
 Model::Model(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
              const std::string &ns, const std::string &name)
+    : Model(physics_world, cfr, ns, name) {
+  this->world = world;
+}
+
+Model::Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+             const std::string &ns, const std::string &name)
     : Entity(physics_world, name),
       namespace_(ns),
       cfr_(cfr),

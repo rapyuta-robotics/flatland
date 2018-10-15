@@ -85,7 +85,8 @@ class Model : public Entity {
                                       */
   Model(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
-
+  Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+        const std::string &ns, const std::string &name);
   /**
    * @brief Destructor for the layer class
    */
