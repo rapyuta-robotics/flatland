@@ -61,7 +61,6 @@ class MessageTopic : public MessageTopicBase {
     return MessageView<T>(messages_, start, end);
   }
 
-  const T* get_latest_message() const;
   void add_new_message(const T& msg);
   void clean_old_messages() override;
 };
@@ -77,7 +76,6 @@ class Subscriber : public SubscriberBase {
  public:
   Subscriber() {}
   ~Subscriber() {}
-  const T* receiveLatest() const;
   MessageView<T> receive();
 
   friend class MessageServer;
@@ -189,14 +187,6 @@ void MessageView<T>::filterTimeRange(const ros::Time timeStart,
 }
 
 template <class T>
-const T* Subscriber<T>::receiveLatest() const {
-  if (!topic_->get_messages().empty()) {
-    return topic_->get_latest_message();
-  }
-  return nullptr;
-}
-
-template <class T>
 MessageView<T> Subscriber<T>::receive() {
   ros::Time now = ros::Time::now();
   MessageView<T> view = topic_->get_message_view(last_subscription_time, now);
@@ -222,11 +212,6 @@ void MessageTopic<T>::clean_old_messages() {
 template <class T>
 void MessageTopic<T>::add_new_message(const T& msg) {
   messages_.emplace_back(ros::Time::now(), msg);
-}
-
-template <class T>
-const T* MessageTopic<T>::get_latest_message() const {
-  return &((messages_.front()).second);
 }
 }
 
