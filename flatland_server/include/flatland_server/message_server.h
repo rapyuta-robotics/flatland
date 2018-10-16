@@ -19,22 +19,13 @@ class SubscriberBase {};
 
 template <class T>
 class MessageView {
-  MessageView(const std::deque<std::pair<ros::Time, T>>& t)
-      : begin_(t.begin()),
-        end_(t.end()),
-        rbegin_(t.rbegin()),
-        rend_(t.rend()) {}
-  MessageView(const std::deque<std::pair<ros::Time, T>>& t,
-              const ros::Time& start, const ros::Time& end)
-      : MessageView(t) {
-    filterTimeRange(start, end);
-  }
-
   typename std::deque<std::pair<ros::Time, T>>::const_iterator begin_;
   typename std::deque<std::pair<ros::Time, T>>::const_iterator end_;
 
   typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator rbegin_;
   typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator rend_;
+
+  void filterTimeRange(const ros::Time begin, const ros::Time end);
 
  public:
   typename std::deque<std::pair<ros::Time, T>>::const_iterator begin() {
@@ -46,14 +37,18 @@ class MessageView {
 
   bool empty() const { return begin_ == end_; }
   unsigned size() const;
-  void filterTimeRange(const ros::Time begin, const ros::Time end);
 
   MessageView() {}
-
-  template <class U>
-  friend class Subscriber;
-  template <class U>
-  friend class MessageTopic;
+  MessageView(const std::deque<std::pair<ros::Time, T>>& t)
+      : begin_(t.begin()),
+        end_(t.end()),
+        rbegin_(t.rbegin()),
+        rend_(t.rend()) {}
+  MessageView(const std::deque<std::pair<ros::Time, T>>& t,
+              const ros::Time& start, const ros::Time& end)
+      : MessageView(t) {
+    filterTimeRange(start, end);
+  }
 };
 
 template <class T>
