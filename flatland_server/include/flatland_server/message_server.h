@@ -24,8 +24,8 @@ class MessageView {
         end_(t.end()),
         rbegin_(t.rbegin()),
         rend_(t.rend()) {}
-  MessageView(const std::deque<std::pair<ros::Time, T>>& t, const ros::Time& start,
-              const ros::Time& end)
+  MessageView(const std::deque<std::pair<ros::Time, T>>& t,
+              const ros::Time& start, const ros::Time& end)
       : MessageView(t) {
     filterTimeRange(start, end);
   }
@@ -40,7 +40,9 @@ class MessageView {
   typename std::deque<std::pair<ros::Time, T>>::const_iterator begin() {
     return begin_;
   }
-  typename std::deque<std::pair<ros::Time, T>>::const_iterator end() { return end_; }
+  typename std::deque<std::pair<ros::Time, T>>::const_iterator end() {
+    return end_;
+  }
 
   bool empty() const { return begin_ == end_; }
   unsigned size() const;
@@ -67,7 +69,7 @@ class MessageTopic : public MessageTopicBase {
   }
   const MessageView<T> get_message_view() { return MessageView<T>(messages_); }
   const MessageView<T> get_message_view(const ros::Time& start,
-                                  const ros::Time& end) {
+                                        const ros::Time& end) {
     return MessageView<T>(messages_, start, end);
   }
 
