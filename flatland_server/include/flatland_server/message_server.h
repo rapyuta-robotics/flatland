@@ -19,19 +19,19 @@ class SubscriberBase {};
 
 template <class T>
 class MessageView {
-  typename std::deque<std::pair<ros::Time, T>>::const_iterator begin_;
-  typename std::deque<std::pair<ros::Time, T>>::const_iterator end_;
+  using const_iterator = typename std::deque<std::pair<ros::Time, T>>::const_iterator;
+  using const_reverse_iterator = typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator;
 
-  typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator rbegin_;
-  typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator rend_;
+  const_iterator begin_;
+  const_iterator end_;
 
   void filterTimeRange(const ros::Time begin, const ros::Time end);
 
  public:
-  typename std::deque<std::pair<ros::Time, T>>::const_iterator begin() {
+  const_iterator begin() const {
     return begin_;
   }
-  typename std::deque<std::pair<ros::Time, T>>::const_iterator end() {
+  const_iterator end() const {
     return end_;
   }
 
@@ -41,9 +41,7 @@ class MessageView {
   MessageView() {}
   MessageView(const std::deque<std::pair<ros::Time, T>>& t)
       : begin_(t.begin()),
-        end_(t.end()),
-        rbegin_(t.rbegin()),
-        rend_(t.rend()) {}
+        end_(t.end()) {}
   MessageView(const std::deque<std::pair<ros::Time, T>>& t,
               const ros::Time& start, const ros::Time& end)
       : MessageView(t) {
@@ -180,18 +178,15 @@ void MessageView<T>::filterTimeRange(const ros::Time timeStart,
   // Iterate and remove messages before time start
   while (begin_ != end_) {
     if (begin_->first < timeStart) {
-      begin_++;
-      rend_--;
+      ++begin_;
     } else {
       break;
     }
   }
-
-  // Iterate and remove messages after timeEnd
-  while (rbegin_ != rend_) {
-    if (rbegin_->first >= timeEnd) {
-      rbegin_++;
-      end_--;
+  // Iterate and remove messages after time End
+  while (begin_ != end_) {
+    if ((end_-1)->first >= timeEnd) {
+      --end_;
     } else {
       break;
     }
@@ -219,7 +214,7 @@ void MessageTopic<T>::clean_old_messages() {
   ros::Time now = ros::Time::now();
   // Delete old messages
   while (!messages_.empty()) {
-    std::pair<ros::Time, T> msg = messages_.front();
+    const std::pair<ros::Time, T>& msg = messages_.front();
 
     if (now - msg.first > message_life_) {
       messages_.pop_front();
@@ -231,8 +226,7 @@ void MessageTopic<T>::clean_old_messages() {
 
 template <class T>
 void MessageTopic<T>::add_new_message(const T& msg) {
-  ros::Time now = ros::Time::now();
-  messages_.emplace_back(now, msg);
+  messages_.emplace_back(ros::Time::now(), msg);
 }
 
 template <class T>
