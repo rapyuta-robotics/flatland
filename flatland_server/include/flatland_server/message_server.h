@@ -19,7 +19,8 @@ class SubscriberBase {};
 
 template <class T>
 class MessageView {
-  using const_iterator = typename std::deque<std::pair<ros::Time, T>>::const_iterator;
+  using const_iterator =
+      typename std::deque<std::pair<ros::Time, T>>::const_iterator;
 
   const_iterator begin_;
   const_iterator end_;
@@ -27,20 +28,15 @@ class MessageView {
   void filterTimeRange(const ros::Time begin, const ros::Time end);
 
  public:
-  const_iterator begin() const {
-    return begin_;
-  }
-  const_iterator end() const {
-    return end_;
-  }
+  const_iterator begin() const { return begin_; }
+  const_iterator end() const { return end_; }
 
   bool empty() const { return begin_ == end_; }
   unsigned size() const;
 
   MessageView() {}
   MessageView(const std::deque<std::pair<ros::Time, T>>& t)
-      : begin_(t.begin()),
-        end_(t.end()) {}
+      : begin_(t.begin()), end_(t.end()) {}
   MessageView(const std::deque<std::pair<ros::Time, T>>& t,
               const ros::Time& start, const ros::Time& end)
       : MessageView(t) {
@@ -184,7 +180,7 @@ void MessageView<T>::filterTimeRange(const ros::Time timeStart,
   }
   // Iterate and remove messages after time End
   while (begin_ != end_) {
-    if ((end_-1)->first >= timeEnd) {
+    if ((end_ - 1)->first >= timeEnd) {
       --end_;
     } else {
       break;
