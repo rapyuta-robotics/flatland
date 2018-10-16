@@ -20,7 +20,6 @@ class SubscriberBase {};
 template <class T>
 class MessageView {
   using const_iterator = typename std::deque<std::pair<ros::Time, T>>::const_iterator;
-  using const_reverse_iterator = typename std::deque<std::pair<ros::Time, T>>::const_reverse_iterator;
 
   const_iterator begin_;
   const_iterator end_;
