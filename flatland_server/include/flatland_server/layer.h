@@ -69,6 +69,8 @@ class Layer : public Entity {
   Body *body_ = nullptr;
   CollisionFilterRegistry *cfr_;  ///< collision filter registry
   std::string viz_name_;          ///< for visualization
+  std::string map_path_;
+  double resolution_;
 
   /**
    * @brief Constructor for the Layer class for initialization using a image
@@ -87,7 +89,7 @@ class Layer : public Entity {
    */
   Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
         const std::vector<std::string> &names, const Color &color,
-        const Pose &origin, const cv::Mat &bitmap, double occupied_thresh,
+        const Pose &origin, const std::string& map_path, const cv::Mat &bitmap, double occupied_thresh,
         double resolution, const YAML::Node &properties);
 
   /**
