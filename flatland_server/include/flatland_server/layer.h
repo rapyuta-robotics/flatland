@@ -89,8 +89,9 @@ class Layer : public Entity {
    */
   Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
         const std::vector<std::string> &names, const Color &color,
-        const Pose &origin, const std::string& map_path, const cv::Mat &bitmap, double occupied_thresh,
-        double resolution, const YAML::Node &properties);
+        const Pose &origin, const std::string &map_path, const cv::Mat &bitmap,
+        double occupied_thresh, double resolution,
+        const YAML::Node &properties);
 
   /**
    * @brief Constructor for the Layer class for initialization using line

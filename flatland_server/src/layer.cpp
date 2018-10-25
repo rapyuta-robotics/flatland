@@ -64,8 +64,9 @@ namespace flatland_server {
 
 Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
-             const Pose &origin, const std::string& map_path, const cv::Mat &bitmap, double occupied_thresh,
-             double resolution, const YAML::Node &properties)
+             const Pose &origin, const std::string &map_path,
+             const cv::Mat &bitmap, double occupied_thresh, double resolution,
+             const YAML::Node &properties)
     : Entity(physics_world, names[0]),
       names_(names),
       map_path_(map_path),
@@ -173,8 +174,9 @@ Layer *Layer::MakeLayer(b2World *physics_world, CollisionFilterRegistry *cfr,
       cv::Mat bitmap;
       map.convertTo(bitmap, CV_32FC1, 1.0 / 255.0);
 
-      return new Layer(physics_world, cfr, names, color, origin, image_path.string(), bitmap,
-                       occupied_thresh, resolution, properties);
+      return new Layer(physics_world, cfr, names, color, origin,
+                       image_path.string(), bitmap, occupied_thresh, resolution,
+                       properties);
     }
   } else {  // If the layer has no static obstacles
     return new Layer(physics_world, cfr, names, color, properties);
