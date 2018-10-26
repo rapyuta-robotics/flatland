@@ -74,7 +74,7 @@ class Layer : public Entity {
     std::string path_;
     double resolution_;
     MapDescription() {}
-    MapDescription(std::string path, double resolution)
+    MapDescription(const std::string& path, const double resolution)
         : path_(path), resolution_(resolution) {}
   };
 
