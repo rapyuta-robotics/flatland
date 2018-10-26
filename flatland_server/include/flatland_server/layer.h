@@ -69,8 +69,16 @@ class Layer : public Entity {
   Body *body_ = nullptr;
   CollisionFilterRegistry *cfr_;  ///< collision filter registry
   std::string viz_name_;          ///< for visualization
-  std::string map_path_;
-  double resolution_;
+
+  struct MapDescription {
+    std::string path_;
+    double resolution_;
+    MapDescription() {}
+    MapDescription(std::string path, float resolution)
+        : path_(path), resolution_(resolution) {}
+  };
+
+  const MapDescription map_description_;
 
   /**
    * @brief Constructor for the Layer class for initialization using a image

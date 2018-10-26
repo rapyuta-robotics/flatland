@@ -69,9 +69,8 @@ Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
              const YAML::Node &properties)
     : Entity(physics_world, names[0]),
       names_(names),
-      map_path_(map_path),
+      map_description_{map_path, static_cast<float>(resolution)},
       cfr_(cfr),
-      resolution_(resolution),
       viz_name_("layer/" + names[0]) {
   body_ = new Body(physics_world_, this, name_, color, origin, b2_staticBody,
                    properties);
