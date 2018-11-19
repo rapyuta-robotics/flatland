@@ -248,7 +248,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
   // ensure no duplicate model names
   if (std::count_if(models_.begin(), models_.end(),
                     [&](Model *m) { return m->name_ == name; }) >= 1) {
-    throw YAMLException("Model with name " + Q(name) + " already exists");
+    return;
   }
 
   boost::filesystem::path abs_path(model_yaml_path);
@@ -261,8 +261,6 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
 
   Model *m = Model::MakeModel(this, physics_world_, &cfr_, abs_path.string(),
                               ns, name);
-  m->TransformAll(pose);
-
   try {
     for (int i = 0; i < m->plugins_reader_.NodeSize(); i++) {
       YamlReader plugin_reader = m->plugins_reader_.Subnode(i, YamlReader::MAP);
