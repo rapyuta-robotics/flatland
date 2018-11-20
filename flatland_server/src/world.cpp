@@ -248,7 +248,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
   // If the model is already loaded, move the model instead
   if (std::count_if(models_.begin(), models_.end(),
                     [&](Model *m) { return m->name_ == name; }) >= 1) {
-    MoveModel(name, pose)
+    MoveModel(name, pose);
     return;
   }
 
