@@ -98,7 +98,6 @@ bool ServiceManager::SpawnModel(flatland_msgs::SpawnModel::Request &request,
 
   try {
     world_->LoadModel(request.yaml_path, request.ns, request.name, pose);
-    world_->MoveModel(request.name, pose);
     response.success = true;
     response.message = "";
   } catch (const std::exception &e) {
