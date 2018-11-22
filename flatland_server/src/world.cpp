@@ -228,6 +228,12 @@ void World::LoadModels(YamlReader &models_reader) {
       Pose pose = reader.GetPose("pose", Pose(0, 0, 0));
       std::string path = reader.Get<std::string>("model");
       reader.EnsureAccessedAllKeys();
+
+      if (std::count_if(models_.begin(), models_.end(),
+                        [&](Model *m) { return m->name_ == name; }) >= 1) {
+        throw YAMLException("Model with name " + Q(name) + " already exists");
+      }
+
       LoadModel(path, ns, name, pose);
     }
   }
