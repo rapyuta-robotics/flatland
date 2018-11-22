@@ -229,8 +229,9 @@ void World::LoadModels(YamlReader &models_reader) {
       std::string path = reader.Get<std::string>("model");
       reader.EnsureAccessedAllKeys();
 
-      if (std::count_if(models_.begin(), models_.end(),
-                        [&](Model *m) { return m->name_ == name; }) >= 1) {
+      if (std::find_if(models_.begin(), models_.end(), [&name](const Model *m) {
+            return m->name_ == name;
+          }) != models_.end()) {
         throw YAMLException("Model with name " + Q(name) + " already exists");
       }
 
@@ -252,8 +253,9 @@ void World::LoadWorldPlugins(YamlReader &world_plugin_reader, World *world,
 void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                       const std::string &name, const Pose &pose) {
   // If the model is already loaded, move the model instead
-  if (std::count_if(models_.begin(), models_.end(),
-                    [&](Model *m) { return m->name_ == name; }) >= 1) {
+  if (std::find_if(models_.begin(), models_.end(), [&name](const Model *m) {
+        return m->name_ == name;
+      }) != models_.end()) {
     MoveModel(name, pose);
     return;
   }
