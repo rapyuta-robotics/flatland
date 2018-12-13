@@ -101,8 +101,7 @@ TEST(DebugVizTest, testBodyToMarkersPolygon) {
 
   // Check the marker shape
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].TRIANGLE_LIST);
-  ASSERT_EQ(markers.markers[0].points.size(),
-            6);
+  ASSERT_EQ(markers.markers[0].points.size(), 6);
 }
 
 // Test the bodyToMarkers method on a circle shape
