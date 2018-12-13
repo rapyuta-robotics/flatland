@@ -125,11 +125,11 @@ class Body {
   /**
    * @brief Get the parent transform
    */
-  const Pose& GetParentTransform() const;
+  const Pose &GetParentTransform() const;
 
-    /**
-     * Destructor for the body
-     */
+  /**
+   * Destructor for the body
+   */
   virtual ~Body();
 
   /**

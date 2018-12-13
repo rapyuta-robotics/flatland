@@ -169,8 +169,8 @@ void DebugVisualization::BodyToMarkers(visualization_msgs::MarkerArray& markers,
           p2.x = poly->m_vertices[i].x;
           p2.y = poly->m_vertices[i].y;
           geometry_msgs::Point p3;
-          p3.x = poly->m_vertices[i+1].x;
-          p3.y = poly->m_vertices[i+1].y;
+          p3.x = poly->m_vertices[i + 1].x;
+          p3.y = poly->m_vertices[i + 1].y;
 
           marker.points.push_back(p1);
           marker.points.push_back(p2);
