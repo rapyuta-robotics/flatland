@@ -100,19 +100,9 @@ TEST(DebugVizTest, testBodyToMarkersPolygon) {
   ASSERT_NEAR(markers.markers[0].pose.orientation.w, 0.70710678118, 1e-5);
 
   // Check the marker shape
-  ASSERT_EQ(markers.markers[0].type, markers.markers[0].LINE_STRIP);
+  ASSERT_EQ(markers.markers[0].type, markers.markers[0].TRIANGLE_LIST);
   ASSERT_EQ(markers.markers[0].points.size(),
-            5);  // box as line strip: 0, 1, 2, 3, 0
-  ASSERT_NEAR(markers.markers[0].points[0].x, -1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[0].y, -2.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[1].x, 1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[1].y, -2.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[2].x, 1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[2].y, 2.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[3].x, -1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[3].y, 2.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[4].x, -1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[4].y, -2.0, 1e-5);
+            6);
 }
 
 // Test the bodyToMarkers method on a circle shape
