@@ -102,6 +102,20 @@ TEST(DebugVizTest, testBodyToMarkersPolygon) {
   // Check the marker shape
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].TRIANGLE_LIST);
   ASSERT_EQ(markers.markers[0].points.size(), 6);
+
+  // Assert locations
+  ASSERT_NEAR(markers.markers[0].points[0].x, -1.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[0].y, -2.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[1].x, 1.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[1].y, -2.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[2].x, 1.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[2].y, 2.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[3].x, -1.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[3].y, -2.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[4].x, 1.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[4].y, 2.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[5].x, -1.0, 1e-5);
+  ASSERT_NEAR(markers.markers[0].points[5].y, 2.0, 1e-5);
 }
 
 // Test the bodyToMarkers method on a circle shape
