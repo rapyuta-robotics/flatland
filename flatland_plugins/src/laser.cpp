@@ -191,8 +191,16 @@ void Laser::ComputeLaserRanges() {
   // Unqueue all of the future'd results
   for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
     auto result = results[i].get();  // Pull the result from the future
-    laser_scan_.ranges[i] = result.first + this->noise_gen_(this->rng_);
-    if (reflectance_layers_bits_) laser_scan_.intensities[i] = result.second;
+
+    if (!flipped_) {
+      laser_scan_.ranges[i] = result.first + this->noise_gen_(this->rng_);
+      if (reflectance_layers_bits_) laser_scan_.intensities[i] = result.second;
+    } else {
+      laser_scan_.ranges[laser_scan_.ranges.size() - i] =
+          result.first + this->noise_gen_(this->rng_);
+      if (reflectance_layers_bits_)
+        laser_scan_.intensities[laser_scan_.ranges.size() - i] = result.second;
+    }
   }
 }
 
@@ -228,6 +236,8 @@ void Laser::ParseParameters(const YAML::Node &config) {
   origin_ = reader.GetPose("origin", Pose(0, 0, 0));
   range_ = reader.Get<double>("range");
   noise_std_dev_ = reader.Get<double>("noise_std_dev", 0);
+
+  flipped_ = reader.Get<bool>("flipped", false);
 
   std::vector<std::string> layers =
       reader.GetList<std::string>("layers", {"all"}, -1, -1);
