@@ -192,16 +192,18 @@ void Laser::ComputeLaserRanges() {
   for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
     auto result = results[i].get();  // Pull the result from the future
 
-    int index;
     if (flipped_) {
-      index = laser_scan_.ranges.size() - i;
+      laser_scan_.ranges[laser_scan_.ranges.size() - i] =
+          result.first + this->noise_gen_(this->rng_);
+      if (reflectance_layers_bits_) {
+        laser_scan_.intensities[laser_scan_.ranges.size() - i] = result.second;
+      }
     } else {
-      index = i;
+      laser_scan_.ranges[i] = result.first + this->noise_gen_(this->rng_);
+      if (reflectance_layers_bits_) {
+        laser_scan_.intensities[i] = result.second;
+      }
     }
-
-    laser_scan_.ranges[index] = result.first + this->noise_gen_(this->rng_);
-    if (reflectance_layers_bits_)
-      laser_scan_.intensities[index] = result.second;
   }
 }
 
