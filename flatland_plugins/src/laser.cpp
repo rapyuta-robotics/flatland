@@ -125,18 +125,7 @@ void Laser::OnInitialize(const YAML::Node &config) {
   laser_tf_.transform.rotation.z = q.z();
   laser_tf_.transform.rotation.w = q.w();
 }
-namespace {
-template <class InputIt, class OutputIt1, class OutputIt2, class Trans1,
-          class Trans2>
-void transform(InputIt first, InputIt end, OutputIt1 o1, OutputIt2 o2,
-               Trans1 t1, Trans2 t2) {
-  while (first != end) {
-    *o1++ = t1(*first);
-    *o2++ = t2(*first);
-    ++first;
-  }
-}
-}
+
 void Laser::BeforePhysicsStep(const Timekeeper &timekeeper) {
   // keep the update rate
   if (!update_timer_.CheckUpdate(timekeeper)) {
@@ -199,47 +188,47 @@ void Laser::ComputeLaserRanges() {
         });
   }
 
-  auto rangetrans = [this](std::future<std::pair<double, double>> &res) {
+  auto range_trans = [this](std::future<std::pair<double, double>> &res) {
     return res.get().first + this->noise_gen_(this->rng_);
   };
-  auto intensity_trans = [this](std::future<std::pair<double, double>> &res) {
-    return res.get().second;
+
+  auto laser_trans = [this](std::future<std::pair<double, double>> &res) {
+    auto r = res.get();
+    r.first += this->noise_gen_(this->rng_);
+    return r;
   };
 
   // Unqueue all of the future'd results
   if (reflectance_layers_bits_) {
     if (flipped_) {
-      transform(results.begin(), results.end(), laser_scan_.ranges.rbegin(),
-                laser_scan_.intensities.rbegin(), rangetrans, intensity_trans);
+      auto scans = laser_scan_.ranges.rbegin();
+      auto intensities = laser_scan_.intensities.rbegin();
+      auto result = results.begin();
+      for (; result != results.end(); ++result, ++scans, ++intensities) {
+        auto thing = laser_trans(*result);
+        *scans = thing.first;
+        *intensities = thing.second;
+      }
     } else {
-      transform(results.begin(), results.end(), laser_scan_.ranges.begin(),
-                laser_scan_.intensities.begin(), rangetrans, intensity_trans);
+      auto scans = laser_scan_.ranges.begin();
+      auto intensities = laser_scan_.intensities.begin();
+      auto result = results.begin();
+      for (; result != results.end(); ++result, ++scans, ++intensities) {
+        auto thing = laser_trans(*result);
+        *scans = thing.first;
+        *intensities = thing.second;
+      }
     }
+
   } else {
     if (flipped_) {
       std::transform(results.begin(), results.end(),
-                     laser_scan_.ranges.rbegin(), rangetrans);
+                     laser_scan_.ranges.rbegin(), range_trans);
     } else {
       std::transform(results.begin(), results.end(), laser_scan_.ranges.begin(),
-                     rangetrans);
+                     range_trans);
     }
   }
-  /*
-   for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
-     auto result = results[i].get();  // Pull the result from the future
-
-     laser_scan_.ranges[i] = result.first + this->noise_gen_(this->rng_);
-     if (reflectance_layers_bits_) {
-       laser_scan_.intensities[i] = result.second;
-     }
-   }
-
-   if(flipped_) {
-     std::reverse(laser_scan_.ranges.begin(), laser_scan_.ranges.end());
-     std::reverse(laser_scan_.intensities.begin(),
-   laser_scan_.intensities.end());
-
-   }*/
 }
 
 float LaserCallback::ReportFixture(b2Fixture *fixture, const b2Vec2 &point,
