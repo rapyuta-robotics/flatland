@@ -185,7 +185,6 @@ void PluginManager::LoadWorldPlugin(World *world, YamlReader &plugin_reader,
 
   boost::shared_ptr<WorldPlugin> world_plugin;
   std::string msg = "World Plugin " + Q(name) + " type " + Q(type);
-
   YAML::Node yaml_node;
   for (const auto &k : plugin_reader.Node()) {
     if (k.first.as<std::string>() != "name" &&
@@ -203,6 +202,7 @@ void PluginManager::LoadWorldPlugin(World *world, YamlReader &plugin_reader,
           world_plugin_loader_->createInstance("flatland_plugins::" + type);
     }
   } catch (pluginlib::PluginlibException &e) {
+    std::cout << "WTF" << std::endl;
     throw PluginException(msg + ": " + std::string(e.what()));
   }
 
