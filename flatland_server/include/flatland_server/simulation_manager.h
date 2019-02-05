@@ -48,13 +48,16 @@
 #define FLATLAND_SERVER_SIMULATION_MANAGER_H
 
 #include <Box2D/Box2D.h>
+#include <flatland_server/service_manager.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/world.h>
+#include <std_msgs/Empty.h>
 #include <string>
 
 namespace flatland_server {
 
+class ServiceManager;
 class SimulationManager {
  public:
   bool run_simulator_;           ///<  While true, keep running the sim loop
@@ -67,6 +70,10 @@ class SimulationManager {
   std::string world_yaml_file_;  ///< path to the world file
   std::string models_path_;
   std::string world_plugins_path_;
+
+  ros::Subscriber map_changed_subscriber_;
+  ros::NodeHandle nh_;
+  std::unique_ptr<flatland_server::ServiceManager> service_manager_;
 
   /**
    * @name  Simulation Manager constructor
@@ -84,6 +91,11 @@ class SimulationManager {
    * This method contains the loop that runs the simulation
    */
   void Main();
+
+   /**
+   * Updates the map of the world
+   */
+  void UpdateMap(const std_msgs::Empty::ConstPtr& map_changed);
 
   /**
    * Kill the world

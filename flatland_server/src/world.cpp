@@ -145,12 +145,11 @@ World *World::MakeWorld(const std::string &yaml_path, const std::string &models_
   w->use_local_map_ = use_local_map;
 
   try {
+    w->LoadWorldPlugins(world_plugin_reader, w, world_settings_reader);
 
     if (use_local_map) {
       w->LoadWorldEntities(yaml_path);
     }
-
-    w->LoadWorldPlugins(world_plugin_reader, w, world_settings_reader);
 
     world_settings_reader.EnsureAccessedAllKeys();
 

@@ -202,7 +202,6 @@ void PluginManager::LoadWorldPlugin(World *world, YamlReader &plugin_reader,
           world_plugin_loader_->createInstance("flatland_plugins::" + type);
     }
   } catch (pluginlib::PluginlibException &e) {
-    std::cout << "WTF" << std::endl;
     throw PluginException(msg + ": " + std::string(e.what()));
   }
 

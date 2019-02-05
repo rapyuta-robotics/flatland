@@ -44,11 +44,10 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "flatland_server/simulation_manager.h"
+#include <flatland_server/simulation_manager.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/layer.h>
 #include <flatland_server/model.h>
-#include <flatland_server/service_manager.h>
 #include <flatland_server/world.h>
 #include <ros/ros.h>
 #include <exception>
@@ -88,6 +87,12 @@ void SimulationManager::Main() {
     return;
   }
 
+  if (!use_local_map_) {
+    map_changed_subscriber_ = nh_.subscribe("/map_changed", 1, &SimulationManager::UpdateMap, this);
+  } else {
+    service_manager_ = std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));
+  }
+
   if (show_viz_) world_->DebugVisualize();
 
   int iterations = 0;
@@ -95,7 +100,6 @@ void SimulationManager::Main() {
   double min_cycle_util = std::numeric_limits<double>::infinity();
   double max_cycle_util = 0;
   double viz_update_period = 1.0f / viz_pub_rate_;
-  ServiceManager service_manager(this, world_);
   Timekeeper timekeeper;
 
   ros::WallRate rate(update_rate_);
@@ -144,6 +148,15 @@ void SimulationManager::Main() {
   ROS_INFO_NAMED("SimMan", "Simulation loop ended");
 
   delete world_;
+}
+
+void SimulationManager::UpdateMap(const std_msgs::Empty::ConstPtr& map_changed) {
+  world_->LoadWorldEntities(world_yaml_file_);
+  if (show_viz_) world_->DebugVisualize();
+
+  if (service_manager_ == nullptr) {
+    service_manager_ = std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));
+  }
 }
 
 void SimulationManager::Shutdown() {

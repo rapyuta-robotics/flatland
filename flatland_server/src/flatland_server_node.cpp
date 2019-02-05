@@ -85,12 +85,10 @@ int main(int argc, char **argv) {
 
   // Load parameters
   std::string world_path = "";  // The file path to the world.yaml file
-  if (use_local_map) {
-    if (!node_handle.getParam("world_path", world_path)) {
-      ROS_FATAL_NAMED("Node", "No world_path parameter given!");
-      ros::shutdown();
-      return 1;
-    }
+  if (!node_handle.getParam("world_path", world_path)) {
+    ROS_FATAL_NAMED("Node", "No world_path parameter given!");
+    ros::shutdown();
+    return 1;
   }
 
   std::string models_path;
