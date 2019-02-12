@@ -119,7 +119,8 @@ int main(int argc, char **argv) {
 
   // Create simulation manager object
   simulation_manager = new flatland_server::SimulationManager(
-      world_path, models_path, world_plugins_path, use_local_map, update_rate, step_size, show_viz, viz_pub_rate);
+      world_path, models_path, world_plugins_path, use_local_map, update_rate,
+      step_size, show_viz, viz_pub_rate);
 
   // Register sigint shutdown handler
   signal(SIGINT, SigintHandler);

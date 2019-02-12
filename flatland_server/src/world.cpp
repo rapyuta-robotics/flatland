@@ -127,10 +127,15 @@ void World::PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) {
   plugin_manager_.PostSolve(contact, impulse);
 }
 
-World *World::MakeWorld(const std::string &yaml_path, const std::string &models_path, const std::string &world_plugins_path, const bool use_local_map) {
+World *World::MakeWorld(const std::string &yaml_path,
+                        const std::string &models_path,
+                        const std::string &world_plugins_path,
+                        const bool use_local_map) {
   YamlReader world_settings_reader = YamlReader(world_plugins_path);
-  YamlReader prop_reader = world_settings_reader.Subnode("properties", YamlReader::MAP);
-  YamlReader world_plugin_reader = world_settings_reader.SubnodeOpt("plugins", YamlReader::LIST);
+  YamlReader prop_reader =
+      world_settings_reader.Subnode("properties", YamlReader::MAP);
+  YamlReader world_plugin_reader =
+      world_settings_reader.SubnodeOpt("plugins", YamlReader::LIST);
 
   int v = prop_reader.Get<int>("velocity_iterations", 10);
   int p = prop_reader.Get<int>("position_iterations", 10);
@@ -169,14 +174,16 @@ World *World::MakeWorld(const std::string &yaml_path, const std::string &models_
   return w;
 }
 
-void World::LoadWorldEntities(const std::string& yaml_path) {
+void World::LoadWorldEntities(const std::string &yaml_path) {
   try {
-      YamlReader map_info_reader = YamlReader(yaml_path);
-      YamlReader layers_reader = map_info_reader.Subnode("layers", YamlReader::LIST);
-      YamlReader models_reader = map_info_reader.SubnodeOpt("models", YamlReader::LIST);
+    YamlReader map_info_reader = YamlReader(yaml_path);
+    YamlReader layers_reader =
+        map_info_reader.Subnode("layers", YamlReader::LIST);
+    YamlReader models_reader =
+        map_info_reader.SubnodeOpt("models", YamlReader::LIST);
 
-      this->LoadLayers(layers_reader);
-      this->LoadModels(models_reader);
+    this->LoadLayers(layers_reader);
+    this->LoadModels(models_reader);
 
   } catch (const YAMLException &e) {
     ROS_FATAL_NAMED("World", "Error loading from YAML");

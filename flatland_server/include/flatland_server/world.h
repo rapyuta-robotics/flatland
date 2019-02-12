@@ -216,19 +216,22 @@ class World : public b2ContactListener {
    * @param[in] world_plugins_path Path to the world yaml file
    * @return pointer to a new world
    */
-  static World *MakeWorld(const std::string &yaml_path, const std::string &models_path, const std::string &world_plugins_path, const bool use_local_map);
+  static World *MakeWorld(const std::string &yaml_path,
+                          const std::string &models_path,
+                          const std::string &world_plugins_path,
+                          const bool use_local_map);
 
-    /**
-     * @brief Loads the layers and objects in the world
-     * @param[in] yaml_path Path to the world yaml file
-     */
+  /**
+   * @brief Loads the layers and objects in the world
+   * @param[in] yaml_path Path to the world yaml file
+   */
   void LoadWorldEntities(const std::string &yaml_path);
 
-    /**
-   * @brief Publish debug visualizations for everything
-   * @param[in] update_layers since layers are pretty much static, this
-   * parameter is used to skip updating layers
-   */
+  /**
+ * @brief Publish debug visualizations for everything
+ * @param[in] update_layers since layers are pretty much static, this
+ * parameter is used to skip updating layers
+ */
   void DebugVisualize(bool update_layers = true);
 };
 };      // namespace flatland_server

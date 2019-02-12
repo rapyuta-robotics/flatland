@@ -48,8 +48,8 @@
 #define FLATLAND_SERVER_SIMULATION_MANAGER_H
 
 #include <Box2D/Box2D.h>
-#include <flatland_server/service_manager.h>
 #include <flatland_server/debug_visualization.h>
+#include <flatland_server/service_manager.h>
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/world.h>
 #include <std_msgs/Empty.h>
@@ -60,13 +60,13 @@ namespace flatland_server {
 class ServiceManager;
 class SimulationManager {
  public:
-  bool run_simulator_;           ///<  While true, keep running the sim loop
-  World *world_;                 ///< Simulation world
-  bool use_local_map_;           ///< Whether or not to wait and poll for map updates
-  double update_rate_;           ///< sim loop rate
-  double step_size_;             ///< step size
-  bool show_viz_;                ///< flag to determine if to show visualization
-  double viz_pub_rate_;          ///< rate to publish visualization
+  bool run_simulator_;   ///<  While true, keep running the sim loop
+  World* world_;         ///< Simulation world
+  bool use_local_map_;   ///< Whether or not to wait and poll for map updates
+  double update_rate_;   ///< sim loop rate
+  double step_size_;     ///< step size
+  bool show_viz_;        ///< flag to determine if to show visualization
+  double viz_pub_rate_;  ///< rate to publish visualization
   std::string world_yaml_file_;  ///< path to the world file
   std::string models_path_;
   std::string world_plugins_path_;
@@ -84,17 +84,19 @@ class SimulationManager {
    * @param[in] viz_pub_rate rate to publish visualization
    * behaving ones
    */
-  SimulationManager(std::string world_yaml_file, std::string models_path, std::string world_plugins_path, bool use_local_map, double update_rate,
-                    double step_size, bool show_viz, double viz_pub_rate);
+  SimulationManager(std::string world_yaml_file, std::string models_path,
+                    std::string world_plugins_path, bool use_local_map,
+                    double update_rate, double step_size, bool show_viz,
+                    double viz_pub_rate);
 
   /**
    * This method contains the loop that runs the simulation
    */
   void Main();
 
-   /**
-   * Updates the map of the world
-   */
+  /**
+  * Updates the map of the world
+  */
   void UpdateMap(const std_msgs::Empty::ConstPtr& map_changed);
 
   /**
