@@ -83,7 +83,6 @@ class Laser : public ModelPlugin {
   bool broadcast_tf_;     ///< whether to broadcast laser origin w.r.t body
   bool flipped_;          ///< whether the lidar is flipped
   uint16_t layers_bits_;  ///< for setting the layers where laser will function
-  ThreadPool pool_;       ///< ThreadPool for managing concurrent scan threads
 
   /*
    * for setting reflectance layers. if the laser hits those layers,
@@ -108,13 +107,7 @@ class Laser : public ModelPlugin {
   geometry_msgs::TransformStamped laser_tf_;  ///< tf from body to laser frame
   UpdateTimer update_timer_;                  ///< for controlling update rate
 
-  /**
-   * @brief Constructor to start the threadpool with N+1 threads
-   */
-  Laser() : pool_(std::thread::hardware_concurrency() + 1) {
-    ROS_INFO_STREAM("Laser plugin loaded with "
-                    << (std::thread::hardware_concurrency() + 1) << " threads");
-  };
+  std::vector<std::pair<double, double>> results_;
 
   /**
    * @brief Initialization for the plugin

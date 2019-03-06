@@ -124,6 +124,8 @@ void Laser::OnInitialize(const YAML::Node &config) {
   laser_tf_.transform.rotation.y = q.y();
   laser_tf_.transform.rotation.z = q.z();
   laser_tf_.transform.rotation.w = q.w();
+
+  results_.reserve((laser_scan_.ranges.size()));
 }
 
 void Laser::BeforePhysicsStep(const Timekeeper &timekeeper) {
@@ -163,42 +165,36 @@ void Laser::ComputeLaserRanges() {
   b2Vec2 laser_origin_point(v_world_laser_origin_(0), v_world_laser_origin_(1));
 
   // Results vector
-  std::vector<std::future<std::pair<double, double>>> results(
-      laser_scan_.ranges.size());
+  std::vector<std::pair<double, double>> results(laser_scan_.ranges.size());
 
   // loop through the laser points and call the Box2D world raycast by
   // enqueueing the callback
   for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
-    results[i] =
-        pool_.enqueue([i, this, laser_origin_point] {  // Lambda function
-          b2Vec2 laser_point;
-          laser_point.x = m_world_laser_points_(0, i);
-          laser_point.y = m_world_laser_points_(1, i);
-          LaserCallback cb(this);
+      b2Vec2 laser_point;
+      laser_point.x = m_world_laser_points_(0, i);
+      laser_point.y = m_world_laser_points_(1, i);
+      LaserCallback cb(this);
 
-          GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point,
-                                                 laser_point);
+      GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point,
+                                             laser_point);
 
-          if (!cb.did_hit_) {
-            return std::make_pair<double, double>(NAN, 0);
-          } else {
-            return std::make_pair<double, double>(cb.fraction_ * this->range_,
-                                                  cb.intensity_);
-          }
-        });
+      if (!cb.did_hit_) {
+          results[i] = std::make_pair<double, double>(NAN, 0);
+      } else {
+          results[i] = std::make_pair<double, double>(cb.fraction_ * this->range_,
+                                                      cb.intensity_);
+      }
   }
 
-  auto range_trans = [this](std::future<std::pair<double, double>> &res) {
-    return res.get().first + this->noise_gen_(this->rng_);
+  auto range_trans = [this](std::pair<double, double> &res) {
+    return res.first + this->noise_gen_(this->rng_);
   };
 
-  auto laser_trans = [this](std::future<std::pair<double, double>> &res) {
-    auto r = res.get();
-    r.first += this->noise_gen_(this->rng_);
-    return r;
+  auto laser_trans = [this](std::pair<double, double> &res) {
+    res.first += this->noise_gen_(this->rng_);
+    return res;
   };
 
-  // Unqueue all of the future'd results
   if (reflectance_layers_bits_) {
     if (flipped_) {
       auto scans = laser_scan_.ranges.rbegin();
