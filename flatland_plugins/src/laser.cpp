@@ -170,20 +170,20 @@ void Laser::ComputeLaserRanges() {
   // loop through the laser points and call the Box2D world raycast by
   // enqueueing the callback
   for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
-      b2Vec2 laser_point;
-      laser_point.x = m_world_laser_points_(0, i);
-      laser_point.y = m_world_laser_points_(1, i);
-      LaserCallback cb(this);
+    b2Vec2 laser_point;
+    laser_point.x = m_world_laser_points_(0, i);
+    laser_point.y = m_world_laser_points_(1, i);
+    LaserCallback cb(this);
 
-      GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point,
-                                             laser_point);
+    GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point,
+                                           laser_point);
 
-      if (!cb.did_hit_) {
-          results[i] = std::make_pair<double, double>(NAN, 0);
-      } else {
-          results[i] = std::make_pair<double, double>(cb.fraction_ * this->range_,
-                                                      cb.intensity_);
-      }
+    if (!cb.did_hit_) {
+      results[i] = std::make_pair<double, double>(NAN, 0);
+    } else {
+      results[i] = std::make_pair<double, double>(cb.fraction_ * this->range_,
+                                                  cb.intensity_);
+    }
   }
 
   auto range_trans = [this](std::pair<double, double> &res) {
