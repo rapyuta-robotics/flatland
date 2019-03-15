@@ -174,10 +174,10 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   float angle = b2body->GetAngle();
 
   if (publish) {
-    // get the velocity of the body, and convert to body frame,
-    // as required by http://docs.ros.org/melodic/api/nav_msgs/html/msg/Odometry.html
-    b2Vec2 linear_vel_local =
-        b2body->GetLocalVector(b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0)));
+    // get the velocity of the body, and convert to body frame, as required by
+    // http://docs.ros.org/melodic/api/nav_msgs/html/msg/Odometry.html
+    b2Vec2 linear_vel_local = b2body->GetLocalVector(
+        b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0)));
     float angular_vel = b2body->GetAngularVelocity();
 
     ground_truth_msg_.header.stamp = timekeeper.GetSimTime();
