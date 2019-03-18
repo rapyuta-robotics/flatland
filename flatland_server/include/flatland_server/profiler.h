@@ -1,7 +1,7 @@
 #ifndef FLATLAND_PROFILER_H
 #define FLATLAND_PROFILER_H
 
-#define PROFILER_ON false
+#define PROFILER_ON true
 #define PROFILER_OUTPUT_PATH "/tmp/flatland_profile_output.log"
 
 #if PROFILER_ON
@@ -61,12 +61,7 @@ class Profile {
 class Profiler {
  public:
   Profile& get(const std::string& profile_name) {
-    auto p = profiles_.find(profile_name);
-    if (p == profiles_.end()) {
-      auto profile = profiles_.emplace(profile_name, Profile());
-      return profile.first->second;
-    }
-    return p->second;
+    return profiles_[profile_name];
   }
 
   void print() {
