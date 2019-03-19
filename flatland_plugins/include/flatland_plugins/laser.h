@@ -103,7 +103,7 @@ class Laser : public ModelPlugin {
   Eigen::Vector3f v_world_laser_origin_;   ///< (0,0) in the laser frame
   sensor_msgs::LaserScan laser_scan_;      ///< for publishing laser scan
   std::vector<float> m_lastMaxFractions_;  ///< the robot move slowly when
-                                           ///comparing with to the scan rate
+                                           /// comparing with to the scan rate
 
   ros::Publisher scan_publisher_;             ///< ros laser topic publisher
   tf::TransformBroadcaster tf_broadcaster_;   ///< broadcast laser frame
