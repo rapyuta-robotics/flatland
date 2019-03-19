@@ -44,11 +44,11 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <flatland_server/profiler.h>
 #include <flatland_plugins/laser.h>
 #include <flatland_server/collision_filter_registry.h>
 #include <flatland_server/exceptions.h>
 #include <flatland_server/model_plugin.h>
+#include <flatland_server/profiler.h>
 #include <flatland_server/yaml_reader.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <pluginlib/class_list_macros.h>
@@ -79,7 +79,7 @@ void Laser::OnInitialize(const YAML::Node& config) {
   // initialize size for the matrix storing the laser points
   m_laser_points_ = Eigen::MatrixXf(3, num_laser_points);
   m_world_laser_points_ = Eigen::MatrixXf(3, num_laser_points);
-  m_lastMaxFractions_ = std::vector<float >(num_laser_points, 1.0);
+  m_lastMaxFractions_ = std::vector<float>(num_laser_points, 1.0);
   v_zero_point_ << 0, 0, 1;
 
   // pre-calculate the laser points w.r.t to the laser frame, since this never
@@ -169,60 +169,64 @@ void Laser::ComputeLaserRanges() {
   // Results vector : clustered to avoid too many locks
   constexpr size_t clusterSize = 10;
   // The last cluster may have a different size
-  size_t lastClusterSize = laser_scan_.ranges.size() % clusterSize; 
-  size_t nbCluster = laser_scan_.ranges.size() / clusterSize + (lastClusterSize == 0 ? 0 : 1);
+  size_t lastClusterSize = laser_scan_.ranges.size() % clusterSize;
+  size_t nbCluster =
+      laser_scan_.ranges.size() / clusterSize + (lastClusterSize == 0 ? 0 : 1);
   if (lastClusterSize == 0) lastClusterSize = clusterSize;
-  std::vector<std::future<std::vector<std::pair<float, float>>>> results(nbCluster);
+  std::vector<std::future<std::vector<std::pair<float, float>>>> results(
+      nbCluster);
 
   // At scan n    : we hit an obstacle at distance range_ * coef
-  // At scan n+1  : we try a first scan with length = range_ * coef * lastScanExpansion
+  // At scan n+1  : we try a first scan with length = range_ * coef *
+  // lastScanExpansion
   // lastScanExpansion makes it possible to take into account of the motion
   // and the rotation of the laser
-  const float lastScanExpansion = 1.f + std::max<float>(4.f / (range_ * update_rate_), 0.05);
+  const float lastScanExpansion =
+      1.f + std::max<float>(4.f / (range_ * update_rate_), 0.05);
 
   // loop through the laser points and call the Box2D world raycast
   // by enqueueing the callback
-  for (unsigned int i = 0; i < nbCluster; ++i)
-  {
-    size_t currentClusterSize = (i == nbCluster - 1 ? lastClusterSize : clusterSize);
-    results[i] = pool_.enqueue(
-      [i, currentClusterSize, clusterSize, this, laser_origin_point, lastScanExpansion]
-    {
+  for (unsigned int i = 0; i < nbCluster; ++i) {
+    size_t currentClusterSize =
+        (i == nbCluster - 1 ? lastClusterSize : clusterSize);
+    results[i] = pool_.enqueue([i, currentClusterSize, clusterSize, this,
+                                laser_origin_point, lastScanExpansion] {
       std::vector<std::pair<float, float>> out(currentClusterSize);
       size_t currentIndice = i * clusterSize;
-      // Iterating over the currentClusterSize indices, starting at i * clusterSize
-      for (size_t j = 0; j < currentClusterSize; ++j, ++currentIndice)
-      {
+      // Iterating over the currentClusterSize indices, starting at i *
+      // clusterSize
+      for (size_t j = 0; j < currentClusterSize; ++j, ++currentIndice) {
         b2Vec2 laser_point;
         laser_point.x = m_world_laser_points_(0, currentIndice);
         laser_point.y = m_world_laser_points_(1, currentIndice);
         LaserCallback cb(this);
 
-        // 1 - Take advantage of the last scan : we may hit the same obstacle (if any),
+        // 1 - Take advantage of the last scan : we may hit the same obstacle
+        // (if any),
         // with the first part of the ray being [0 fraction] * range_
-        float fraction = 
-          std::min<float>(lastScanExpansion * m_lastMaxFractions_[currentIndice], 1.0f);
-        GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point, laser_point, fraction );
+        float fraction = std::min<float>(
+            lastScanExpansion * m_lastMaxFractions_[currentIndice], 1.0f);
+        GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point,
+                                               laser_point, fraction);
 
-        // 2 - If no hit detected, we relaunch the scan 
+        // 2 - If no hit detected, we relaunch the scan
         // with the second part of the ray being [fraction 1] * range_
-        if (!cb.did_hit_ && fraction < 1.0f)
-        {
-          b2Vec2 new_origin_point = fraction * laser_point - (1 - fraction) * laser_origin_point;
-          GetModel()->GetPhysicsWorld()->RayCast(&cb, new_origin_point, laser_point, 1.0f);
-          if (cb.did_hit_) cb.fraction_ = fraction + cb.fraction_  - cb.fraction_ * fraction;
+        if (!cb.did_hit_ && fraction < 1.0f) {
+          b2Vec2 new_origin_point =
+              fraction * laser_point - (1 - fraction) * laser_origin_point;
+          GetModel()->GetPhysicsWorld()->RayCast(&cb, new_origin_point,
+                                                 laser_point, 1.0f);
+          if (cb.did_hit_)
+            cb.fraction_ = fraction + cb.fraction_ - cb.fraction_ * fraction;
         }
 
         // 3 - Let's check the result
-        if (cb.did_hit_) 
-        {
+        if (cb.did_hit_) {
           m_lastMaxFractions_[currentIndice] = cb.fraction_;
-          out[j] =  std::make_pair<float, float>(
+          out[j] = std::make_pair<float, float>(
               cb.fraction_ * this->range_ + this->noise_gen_(this->rng_),
               static_cast<float>(cb.intensity_));
-        }
-        else
-        {
+        } else {
           m_lastMaxFractions_[currentIndice] = cb.fraction_;
           out[j] = std::make_pair<float, float>(NAN, 0);
         }
@@ -230,45 +234,39 @@ void Laser::ComputeLaserRanges() {
       return out;
     });
   }
-    
+
   // Unqueue all of the future'd results
   const auto reflectance = reflectance_layers_bits_;
-  if (flipped_)
-  {
+  if (flipped_) {
     auto i = laser_scan_.intensities.rbegin();
     auto r = laser_scan_.ranges.rbegin();
-    for (auto clusterIte = results.begin(); clusterIte != results.end(); ++clusterIte)
-    {
+    for (auto clusterIte = results.begin(); clusterIte != results.end();
+         ++clusterIte) {
       auto resultCluster = clusterIte->get();
-      // Loop unswitching should occur
-      for (auto ite = resultCluster.begin(); ite != resultCluster.end(); ++ite, ++i, ++r)
-      {
+      for (auto ite = resultCluster.begin(); ite != resultCluster.end();
+           ++ite, ++i, ++r) {
         // Loop unswitching should occur
-        if (reflectance)
-        {
+        if (reflectance) {
           *i = ite->second;
           *r = ite->first;
-        }
-        else *r = ite->first;
+        } else
+          *r = ite->first;
       }
     }
-  }
-  else
-  {
+  } else {
     auto i = laser_scan_.intensities.begin();
     auto r = laser_scan_.ranges.begin();
-    for (auto clusterIte = results.begin(); clusterIte != results.end(); ++clusterIte)
-    {
+    for (auto clusterIte = results.begin(); clusterIte != results.end();
+         ++clusterIte) {
       auto resultCluster = clusterIte->get();
-      for (auto ite = resultCluster.begin(); ite != resultCluster.end(); ++ite, ++i, ++r)
-      {
+      for (auto ite = resultCluster.begin(); ite != resultCluster.end();
+           ++ite, ++i, ++r) {
         // Loop unswitching should occur
-        if (reflectance)
-        {
+        if (reflectance) {
           *i = ite->second;
           *r = ite->first;
-        }
-        else *r = ite->first;
+        } else
+          *r = ite->first;
       }
     }
   }
@@ -293,7 +291,6 @@ float LaserCallback::ReportFixture(b2Fixture* fixture, const b2Vec2& point,
   fraction_ = fraction;
 
   return fraction;
-  //return 0;
 }
 
 void Laser::ParseParameters(const YAML::Node& config) {
