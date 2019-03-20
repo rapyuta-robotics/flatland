@@ -1,10 +1,10 @@
 #ifndef FLATLAND_PROFILER_H
 #define FLATLAND_PROFILER_H
 
-#define PROFILER_ON true
 #define PROFILER_OUTPUT_PATH "/tmp/flatland_profile_output.log"
 
-#if PROFILER_ON
+// Define the preprocessor macro PROFILE_ON to activate profiling
+#ifdef PROFILER_ON
 #define START_PROFILE(timekeeper, name) timekeeper.profiler_.get(name).start()
 #define END_PROFILE(timekeeper, name) timekeeper.profiler_.get(name).end()
 #define PRINT_ALL_PROFILES(timekeeper) timekeeper.profiler_.print()

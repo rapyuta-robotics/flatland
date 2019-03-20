@@ -172,7 +172,9 @@ void Laser::ComputeLaserRanges() {
   size_t lastClusterSize = laser_scan_.ranges.size() % clusterSize;
   size_t nbCluster =
       laser_scan_.ranges.size() / clusterSize + (lastClusterSize == 0 ? 0 : 1);
-  if (lastClusterSize == 0) lastClusterSize = clusterSize;
+  if (lastClusterSize == 0) {
+    lastClusterSize = clusterSize;
+  }
   std::vector<std::future<std::vector<std::pair<float, float>>>> results(
       nbCluster);
 
@@ -182,7 +184,7 @@ void Laser::ComputeLaserRanges() {
   // lastScanExpansion makes it possible to take into account of the motion
   // and the rotation of the laser
   const float lastScanExpansion =
-      1.f + std::max<float>(4.f / (range_ * update_rate_), 0.05);
+      1.0f + std::max<float>(4.0f / (range_ * update_rate_), 0.05f);
 
   // loop through the laser points and call the Box2D world raycast
   // by enqueueing the callback
