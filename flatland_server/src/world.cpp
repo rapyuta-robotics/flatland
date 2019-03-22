@@ -198,6 +198,10 @@ void World::LoadWorldEntities(const std::string &yaml_path) {
 }
 
 void World::LoadLayers(YamlReader &layers_reader) {
+  layers_name_map_.clear();
+  layers_.clear();
+  cfr_.ClearAllLayers();
+
   // loop through each layer and parse the data
   for (int i = 0; i < layers_reader.NodeSize(); i++) {
     YamlReader reader = layers_reader.Subnode(i, YamlReader::MAP);
@@ -251,6 +255,17 @@ void World::LoadLayers(YamlReader &layers_reader) {
 
 void World::LoadModels(YamlReader &models_reader) {
   if (!models_reader.IsNodeNull()) {
+    for (int i = 0; i < models_reader.NodeSize(); i++) {
+      YamlReader reader = models_reader.Subnode(i, YamlReader::MAP);
+      std::string name = reader.Get<std::string>("name");
+      auto found =
+          std::find_if(models_.begin(), models_.end(),
+                       [&name](const Model *m) { return m->name_ == name; });
+      if (found != models_.end()) {
+        models_.erase(found);
+      }
+    }
+
     for (int i = 0; i < models_reader.NodeSize(); i++) {
       YamlReader reader = models_reader.Subnode(i, YamlReader::MAP);
 
