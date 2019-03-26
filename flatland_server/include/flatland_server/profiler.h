@@ -45,7 +45,7 @@ class Profile {
 
   int getLapseCount() const { return lapse_count_; }
 
-  long getTotalDuration() const {
+  int64_t getTotalDuration() const {
     return std::chrono::duration_cast<std::chrono::microseconds>(
                total_duration_)
         .count();
