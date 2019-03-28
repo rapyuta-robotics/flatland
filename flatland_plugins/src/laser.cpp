@@ -215,7 +215,7 @@ void Laser::ComputeLaserRanges() {
         // with the second part of the ray being [fraction 1] * range_
         if (!cb.did_hit_ && fraction < 1.0f) {
           b2Vec2 new_origin_point =
-              fraction * laser_point - (1 - fraction) * laser_origin_point;
+              fraction * laser_point + (1 - fraction) * laser_origin_point;
           GetModel()->GetPhysicsWorld()->RayCast(&cb, new_origin_point,
                                                  laser_point, 1.0f);
           if (cb.did_hit_)
