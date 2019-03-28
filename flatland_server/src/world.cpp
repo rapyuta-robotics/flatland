@@ -274,7 +274,8 @@ void World::LoadModels(YamlReader &models_reader) {
       std::string name = reader.Get<std::string>("name");
       models_.erase(
           std::remove_if(models_.begin(), models_.end(),
-                         [&name](const Model *m) { return m->name_ == name; }));
+                         [&name](const Model *m) { return m->name_ == name; }),
+          models_.end());
     }
 
     for (int i = 0; i < models_reader.NodeSize(); i++) {
