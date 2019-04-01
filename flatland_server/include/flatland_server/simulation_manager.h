@@ -71,7 +71,6 @@ class SimulationManager {
   std::string models_path_;
   std::string world_plugins_path_;
 
-  ros::Subscriber map_changed_subscriber_;
   ros::NodeHandle nh_;
   std::unique_ptr<flatland_server::ServiceManager> service_manager_;
 
