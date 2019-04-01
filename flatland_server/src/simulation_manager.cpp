@@ -108,7 +108,7 @@ void SimulationManager::Main() {
       try {
         world_->LoadWorldEntities(world_yaml_file_);
         if (show_viz_) {
-            world_->DebugVisualize();
+          world_->DebugVisualize();
         }
         service_manager_ =
             std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));

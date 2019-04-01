@@ -195,7 +195,8 @@ void World::LoadWorldEntities(const std::string &yaml_path) {
     this->LoadModels(models_reader);
 
   } catch (const YAMLException &e) {
-    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World", yaml_path << "not loaded yet");
+    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World", yaml_path
+                                                           << "not loaded yet");
     throw e;
   } catch (const PluginException &e) {
     ROS_FATAL_NAMED("World", "Error loading plugins");
