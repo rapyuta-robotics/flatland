@@ -164,17 +164,6 @@ void SimulationManager::Main() {
   delete world_;
 }
 
-void SimulationManager::UpdateMap(
-    const std_msgs::Empty::ConstPtr& map_changed) {
-  world_->LoadWorldEntities(world_yaml_file_);
-  if (show_viz_) world_->DebugVisualize();
-
-  if (service_manager_ == nullptr) {
-    service_manager_ =
-        std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));
-  }
-}
-
 void SimulationManager::Shutdown() {
   ROS_INFO_NAMED("SimMan", "Shutdown called");
   run_simulator_ = false;

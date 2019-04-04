@@ -94,11 +94,6 @@ class SimulationManager {
   void Main();
 
   /**
-  * Updates the map of the world
-  */
-  void UpdateMap(const std_msgs::Empty::ConstPtr& map_changed);
-
-  /**
    * Kill the world
    */
   void Shutdown();
