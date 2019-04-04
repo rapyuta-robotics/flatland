@@ -52,7 +52,6 @@
 #include <flatland_server/service_manager.h>
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/world.h>
-#include <std_msgs/Empty.h>
 #include <string>
 
 namespace flatland_server {
