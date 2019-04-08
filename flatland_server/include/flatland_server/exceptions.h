@@ -124,7 +124,7 @@ class YAMLException : public Exception {
              << yaml_cpp_mark.column + 1;
     }
 
-    if (yaml_cpp_msg.size() > 0) {
+    if (!yaml_cpp_msg.empty()) {
       output << ", " << yaml_cpp_msg;
     }
 

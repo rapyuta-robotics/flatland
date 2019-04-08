@@ -222,9 +222,8 @@ class World : public b2ContactListener {
 
   /**
    * @brief Loads the layers and objects in the world
-   * @param[in] yaml_path Path to the world yaml file
    */
-  void LoadWorldEntities(const std::string &yaml_path);
+  void LoadWorldEntities();
 
   /**
  * @brief Publish debug visualizations for everything

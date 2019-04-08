@@ -185,7 +185,7 @@ TEST_F(PluginManagerTest, collision_test) {
   timekeeper.SetMaxStepSize(1.0);
   w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                        world_yaml_dir.string(),
-                       world_yaml_dir.string() + "world_plugins.yaml", true);
+                       world_yaml_dir.string() + "world_plugins.yaml");
   Layer *l = w->layers_[0];
   Model *m0 = w->models_[0];
   Model *m1 = w->models_[1];
@@ -240,7 +240,7 @@ TEST_F(PluginManagerTest, collision_test) {
   // move the body 1m down over 2 timesteps, this should place model 0 in
   // contact with model 1
   b0->physics_body_->SetLinearVelocity(b2Vec2(0, 0));
-  b1->physics_body_->SetLinearVelocity(b2Vec2(0, -0.5));
+  b1->physics_body_->SetLinearVelocity(b2Vec2(0, -0.5f));
   w->Update(timekeeper);
   w->Update(timekeeper);
   EXPECT_TRUE(FunctionCallEq(p, {{"OnInitialize", false},
@@ -308,7 +308,7 @@ TEST_F(PluginManagerTest, load_dummy_test) {
 
   w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                        world_yaml_dir.string(),
-                       world_yaml_dir.string() + "world_plugins.yaml", true);
+                       world_yaml_dir.string() + "world_plugins.yaml");
 
   ModelPlugin *p = w->plugin_manager_.model_plugins_[0].get();
 
@@ -322,7 +322,7 @@ TEST_F(PluginManagerTest, plugin_throws_exception) {
   try {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml", true);
+                         world_yaml_dir.string() + "world_plugins.yaml");
 
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException &e) {
@@ -349,7 +349,7 @@ TEST_F(PluginManagerTest, nonexistent_plugin) {
   try {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml", true);
+                         world_yaml_dir.string() + "world_plugins.yaml");
 
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException &e) {
@@ -375,7 +375,7 @@ TEST_F(PluginManagerTest, invalid_plugin_yaml) {
   try {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml", true);
+                         world_yaml_dir.string() + "world_plugins.yaml");
     FAIL() << "Expected an exception, but none were raised";
   } catch (const YAMLException &e) {
     EXPECT_STREQ(
@@ -396,7 +396,7 @@ TEST_F(PluginManagerTest, duplicate_plugin) {
   try {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml", true);
+                         world_yaml_dir.string() + "world_plugins.yaml");
 
     FAIL() << "Expected an exception, but none were raised";
   } catch (const YAMLException &e) {

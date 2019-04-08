@@ -183,9 +183,9 @@ World *World::MakeWorld(const std::string &yaml_path,
   return w;
 }
 
-void World::LoadWorldEntities(const std::string &yaml_path) {
+void World::LoadWorldEntities() {
   try {
-    YamlReader map_info_reader = YamlReader(yaml_path);
+    YamlReader map_info_reader = YamlReader(yaml_path_);
     YamlReader layers_reader =
         map_info_reader.Subnode("layers", YamlReader::LIST);
     YamlReader models_reader =
@@ -195,7 +195,7 @@ void World::LoadWorldEntities(const std::string &yaml_path) {
     this->LoadModels(models_reader);
 
   } catch (const YAMLException &e) {
-    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World", yaml_path
+    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World", yaml_path_
                                                            << "not loaded yet");
     throw e;
   } catch (const PluginException &e) {
