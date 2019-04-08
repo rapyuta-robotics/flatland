@@ -186,6 +186,7 @@ TEST_F(PluginManagerTest, collision_test) {
   w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                        world_yaml_dir.string(),
                        world_yaml_dir.string() + "world_plugins.yaml");
+  w->LoadWorldEntities();
   Layer *l = w->layers_[0];
   Model *m0 = w->models_[0];
   Model *m1 = w->models_[1];
@@ -309,7 +310,7 @@ TEST_F(PluginManagerTest, load_dummy_test) {
   w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                        world_yaml_dir.string(),
                        world_yaml_dir.string() + "world_plugins.yaml");
-
+  w->LoadWorldEntities();
   ModelPlugin *p = w->plugin_manager_.model_plugins_[0].get();
 
   EXPECT_STREQ(p->GetType().c_str(), "DummyModelPlugin");
@@ -323,7 +324,7 @@ TEST_F(PluginManagerTest, plugin_throws_exception) {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
                          world_yaml_dir.string() + "world_plugins.yaml");
-
+    w->LoadWorldEntities();
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException &e) {
     // do a regex match against error message
@@ -350,7 +351,7 @@ TEST_F(PluginManagerTest, nonexistent_plugin) {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
                          world_yaml_dir.string() + "world_plugins.yaml");
-
+    w->LoadWorldEntities();
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException &e) {
     std::cmatch match;
@@ -376,6 +377,7 @@ TEST_F(PluginManagerTest, invalid_plugin_yaml) {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
                          world_yaml_dir.string() + "world_plugins.yaml");
+    w->LoadWorldEntities();
     FAIL() << "Expected an exception, but none were raised";
   } catch (const YAMLException &e) {
     EXPECT_STREQ(
@@ -397,7 +399,7 @@ TEST_F(PluginManagerTest, duplicate_plugin) {
     w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
                          world_yaml_dir.string(),
                          world_yaml_dir.string() + "world_plugins.yaml");
-
+    w->LoadWorldEntities();
     FAIL() << "Expected an exception, but none were raised";
   } catch (const YAMLException &e) {
     EXPECT_STREQ(
