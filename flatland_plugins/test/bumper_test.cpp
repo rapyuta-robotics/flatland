@@ -189,6 +189,7 @@ TEST_F(BumperPluginTest, collision_test) {
   w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
                        world_yaml_path.string(),
                        world_yaml_path.string() + "world_plugins.yaml", true);
+  w->LoadWorldEntities();
 
   ros::NodeHandle nh;
   ros::Subscriber sub_1, sub_2, sub_3;
@@ -290,7 +291,9 @@ TEST_F(BumperPluginTest, invalid_A) {
   try {
     w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
                          world_yaml_path.string(),
-                         world_yaml_path.string() + "world_plugins.yaml", true);
+                         world_yaml_path.string() + "world_plugins.yaml");
+    w->LoadWorldEntities();
+
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException& e) {
     std::cmatch match;

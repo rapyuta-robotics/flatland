@@ -102,7 +102,7 @@ class UpdateTimerTest : public ::testing::Test {
     w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
                          world_yaml_path.string(),
                          world_yaml_path.string() + "world_plugins.yaml", true);
-
+    w->LoadWorldEntities();
     // artificially load a plugin
     boost::shared_ptr<TestPlugin> p(new TestPlugin());
     p->Initialize("TestPlugin", "test_plugin", w->models_[0], YAML::Node());
