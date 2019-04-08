@@ -94,6 +94,10 @@ Subscriber<T> MessageServer::subscribe(
     const std::function<void(const T&)>& callback_function) {
   flatland_server::MessageTopic<T>* topic = get_message_topic<T>(name);
 
+  // TODO - Make it so that when the copied subscriber gets deleted, it will be
+  // removed from the topic list
+  // Not bothering to fix it now because, currently deletion of subscribers has
+  // not been fully implemented
   topic->subscribers_.emplace_back(topic, callback_function);
   return topic->subscribers_.back();
 }
