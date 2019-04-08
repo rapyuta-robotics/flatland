@@ -104,17 +104,16 @@ void SimulationManager::Main() {
 
   ROS_INFO_NAMED("SimMan", "Waiting for Map");
   while (ros::ok() && run_simulator_) {
-    if (service_manager_ == nullptr) {
-      try {
-        world_->LoadWorldEntities(world_yaml_file_);
-        if (show_viz_) {
-          world_->DebugVisualize();
-        }
-        service_manager_ =
-            std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));
-      } catch (const YAMLException& ex) {
-        ROS_DEBUG_STREAM("Tried to load world yaml file " << world_yaml_file_);
+    try {
+      world_->LoadWorldEntities(world_yaml_file_);
+      if (show_viz_) {
+        world_->DebugVisualize();
       }
+      service_manager_ =
+          std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));
+      break;
+    } catch (const YAMLException& ex) {
+      ROS_DEBUG_STREAM("Tried to load world yaml file " << world_yaml_file_);
     }
     rate.sleep();
   }
