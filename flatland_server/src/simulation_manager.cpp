@@ -101,8 +101,8 @@ void SimulationManager::Main() {
 
   ros::WallRate rate(update_rate_);
   timekeeper.SetMaxStepSize(step_size_);
-  ROS_INFO_NAMED("SimMan", "Simulation loop started");
 
+  ROS_INFO_NAMED("SimMan", "Waiting for Map");
   while (ros::ok() && run_simulator_) {
     if (service_manager_ == nullptr) {
       try {
@@ -116,7 +116,11 @@ void SimulationManager::Main() {
         ROS_DEBUG_STREAM("Tried to load world yaml file " << world_yaml_file_);
       }
     }
+    rate.sleep();
+  }
 
+  ROS_INFO_NAMED("SimMan", "Received Map, Simulation Loop Started");
+  while (ros::ok() && run_simulator_) {
     START_PROFILE(timekeeper, "Total Iteration");
     // for updating visualization at a given rate
     // see flatland_plugins/update_timer.cpp for this formula
