@@ -3,7 +3,6 @@
 
 #include <deque>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <ros/ros.h>
@@ -19,8 +18,9 @@ class MessageTopicBase {};
 
 template <class T>
 class MessageTopic : public MessageTopicBase {
-  std::unordered_set<Subscriber<T>*> subscribers_;
+  std::vector<Subscriber<T>> subscribers_;
 
+ private:
   friend class Subscriber<T>;
   friend class Publisher<T>;
   friend class MessageServer;
@@ -33,7 +33,7 @@ class Subscriber {
 
   explicit Subscriber(MessageTopic<T>* topic,
                       const std::function<void(const T&)>& callback_function)
-      : topic_(topic), callback_function_(callback_function) {}
+      : topic_(topic), callback_function_(std::move(callback_function)) {}
 
  private:
   MessageTopic<T>* topic_;
@@ -94,10 +94,8 @@ Subscriber<T> MessageServer::subscribe(
     const std::function<void(const T&)>& callback_function) {
   flatland_server::MessageTopic<T>* topic = get_message_topic<T>(name);
 
-  Subscriber<T> subscriber(topic, callback_function);
-  topic->subscribers_.insert(&subscriber);
-
-  return std::move(subscriber);
+  topic->subscribers_.emplace_back(topic, callback_function);
+  return topic->subscribers_.back();
 }
 
 template <class T>
@@ -108,8 +106,8 @@ Publisher<T> MessageServer::advertise(const std::string& name) {
 
 template <class T>
 void Publisher<T>::publish(const T& t) {
-  for (const Subscriber<T>* subsciber : topic_->subscribers_) {
-    subsciber->callback_function_(t);
+  for (const Subscriber<T>& subscriber : topic_->subscribers_) {
+    subscriber.callback_function_(t);
   }
 }
 }
