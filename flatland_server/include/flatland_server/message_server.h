@@ -1,7 +1,6 @@
 #ifndef FLATLAND_SERVER_MESSAGE_SERVER_H
 #define FLATLAND_SERVER_MESSAGE_SERVER_H
 
-#include <deque>
 #include <unordered_map>
 #include <vector>
 
@@ -18,12 +17,8 @@ class MessageTopicBase {};
 
 template <class T>
 class MessageTopic : public MessageTopicBase {
+ public:
   std::vector<Subscriber<T>> subscribers_;
-
- private:
-  friend class Subscriber<T>;
-  friend class Publisher<T>;
-  friend class MessageServer;
 };
 
 template <class T>
