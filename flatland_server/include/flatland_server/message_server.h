@@ -28,7 +28,7 @@ class Subscriber {
 
   explicit Subscriber(MessageTopic<T>* topic,
                       const std::function<void(const T&)>& callback_function)
-      : topic_(topic), callback_function_(std::move(callback_function)) {}
+      : topic_(topic), callback_function_(callback_function) {}
 
  private:
   MessageTopic<T>* topic_;
