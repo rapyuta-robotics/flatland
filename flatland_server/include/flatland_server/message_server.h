@@ -73,14 +73,10 @@ class MessageServer {
 template <class T>
 MessageTopic<T>* MessageServer::get_message_topic(const std::string& name) {
   auto msg_topic = topics_.find(name);
-  if (msg_topic != topics_.end()) {
-    return static_cast<MessageTopic<T>*>((msg_topic->second).get());
+  if (msg_topic == topics_.end()) {
+    msg_topic = topics_.emplace(name, std::unique_ptr<MessageTopic<T>>(new flatland_server::MessageTopic<T>())).first;
   }
-
-  auto new_topic = topics_.emplace(
-      name,
-      std::unique_ptr<MessageTopic<T>>(new flatland_server::MessageTopic<T>()));
-  return static_cast<MessageTopic<T>*>((new_topic.first->second).get());
+  return static_cast<MessageTopic<T>*>((msg_topic->second).get());
 }
 
 template <class T>
