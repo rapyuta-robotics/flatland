@@ -133,13 +133,13 @@ void SimulationManager::Main() {
     // see flatland_plugins/update_timer.cpp for this formula
     double f = 0.0;
     try {
-      f = fmod(timekeeper.GetSimTime().toSec() +
-                   (rate.expectedCycleTime().toSec() / 2.0),
-               viz_update_period);
+      f = fmod(
+          timekeeper.GetSimTime().toSec() + (timekeeper.GetMaxStepSize() / 2.0),
+          viz_update_period);
     } catch (std::runtime_error& ex) {
       ROS_ERROR("Flatland runtime error: [%s]", ex.what());
     }
-    bool update_viz = ((f >= 0.0) && (f < rate.expectedCycleTime().toSec()));
+    bool update_viz = ((f >= 0.0) && (f < timekeeper.GetMaxStepSize()));
 
     world_->Update(timekeeper);  // Step physics by ros cycle time
 

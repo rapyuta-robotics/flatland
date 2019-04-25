@@ -92,7 +92,7 @@ struct Pose {
     this->theta = theta;
   }
 
-  Pose(const std::array<double, 3> &p) {
+  explicit Pose(const std::array<double, 3> &p) {
     this->x = p[0];
     this->y = p[1];
     this->theta = p[2];
