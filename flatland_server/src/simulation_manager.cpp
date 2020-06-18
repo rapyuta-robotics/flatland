@@ -132,8 +132,9 @@ void SimulationManager::Main() {
     // for updating visualization at a given rate
     // see flatland_plugins/update_timer.cpp for this formula
     double f = 0.0;
+    static double t_init_offset = timekeeper.GetSimTime().toSec();
     try {
-      f = fmod(timekeeper.GetSimTime().toSec() +
+      f = fmod(timekeeper.GetSimTime().toSec() - t_init_offset +
                    (rate.expectedCycleTime().toSec() / 2.0),
                viz_update_period);
     } catch (std::runtime_error& ex) {
