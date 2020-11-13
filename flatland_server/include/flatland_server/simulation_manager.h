@@ -61,7 +61,6 @@ class SimulationManager {
  public:
   bool run_simulator_;   ///<  While true, keep running the sim loop
   World* world_;         ///< Simulation world
-  bool use_local_map_;   ///< Whether or not to wait and poll for map updates
   double update_rate_;   ///< sim loop rate
   double step_size_;     ///< step size
   bool show_viz_;        ///< flag to determine if to show visualization
@@ -83,8 +82,7 @@ class SimulationManager {
    * behaving ones
    */
   SimulationManager(std::string world_yaml_file, std::string models_path,
-                    std::string world_plugins_path, bool use_local_map,
-                    double update_rate, double step_size, bool show_viz,
+                    std::string world_plugins_path, double update_rate, double step_size, bool show_viz,
                     double viz_pub_rate);
 
   /**

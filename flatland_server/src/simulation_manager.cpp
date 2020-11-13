@@ -59,11 +59,10 @@ namespace flatland_server {
 SimulationManager::SimulationManager(std::string world_yaml_file,
                                      std::string models_path,
                                      std::string world_plugins_path,
-                                     bool use_local_map, double update_rate,
+                                     double update_rate,
                                      double step_size, bool show_viz,
                                      double viz_pub_rate)
     : world_(nullptr),
-      use_local_map_(use_local_map),
       update_rate_(update_rate),
       step_size_(step_size),
       show_viz_(show_viz),
