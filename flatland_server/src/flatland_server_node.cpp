@@ -88,14 +88,14 @@ int main(int argc, char **argv) {
 
   std::string models_path;
   if (!node_handle.getParam("models_path", models_path)) {
-    ROS_FATAL_NAMED("Node", "No world_path parameter given!");
+    ROS_FATAL_NAMED("Node", "No models_path parameter given!");
     ros::shutdown();
     return 1;
   }
 
   std::string world_plugins_path;
   if (!node_handle.getParam("world_plugins_path", world_plugins_path)) {
-    ROS_FATAL_NAMED("Node", "No world_path parameter given!");
+    ROS_FATAL_NAMED("Node", "No world_plugins_path parameter given!");
     ros::shutdown();
     return 1;
   }
