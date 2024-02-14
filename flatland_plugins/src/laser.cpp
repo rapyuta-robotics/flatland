@@ -86,6 +86,9 @@ void Laser::OnInitialize(const YAML::Node& config) {
   // changes
   for (unsigned int i = 0; i < num_laser_points; i++) {
     float angle = min_angle_ + i * increment_;
+    if (flipped_) {  // Laser inverted, so laser local frame angles are also inverted
+      angle = -angle;
+    }
 
     float x = range_ * cos(angle);
     float y = range_ * sin(angle);
@@ -114,7 +117,11 @@ void Laser::OnInitialize(const YAML::Node& config) {
 
   // Broadcast transform between the body and laser
   tf::Quaternion q;
-  q.setRPY(0, 0, origin_.theta);
+  if (flipped_) {
+    q.setRPY(M_PI, 0, origin_.theta);
+  } else {
+    q.setRPY(0, 0, origin_.theta);
+  }
 
   laser_tf_.header.frame_id = tf::resolve(
       "", GetModel()->NameSpaceTF(body_->GetName()));  // Todo: parent_tf param
@@ -240,37 +247,19 @@ void Laser::ComputeLaserRanges() {
 
   // Unqueue all of the future'd results
   const auto reflectance = reflectance_layers_bits_;
-  if (flipped_) {
-    auto i = laser_scan_.intensities.rbegin();
-    auto r = laser_scan_.ranges.rbegin();
-    for (auto clusterIte = results.begin(); clusterIte != results.end();
-         ++clusterIte) {
-      auto resultCluster = clusterIte->get();
-      for (auto ite = resultCluster.begin(); ite != resultCluster.end();
-           ++ite, ++i, ++r) {
-        // Loop unswitching should occur
-        if (reflectance) {
-          *i = ite->second;
-          *r = ite->first;
-        } else
-          *r = ite->first;
-      }
-    }
-  } else {
-    auto i = laser_scan_.intensities.begin();
-    auto r = laser_scan_.ranges.begin();
-    for (auto clusterIte = results.begin(); clusterIte != results.end();
-         ++clusterIte) {
-      auto resultCluster = clusterIte->get();
-      for (auto ite = resultCluster.begin(); ite != resultCluster.end();
-           ++ite, ++i, ++r) {
-        // Loop unswitching should occur
-        if (reflectance) {
-          *i = ite->second;
-          *r = ite->first;
-        } else
-          *r = ite->first;
-      }
+  auto i = laser_scan_.intensities.begin();
+  auto r = laser_scan_.ranges.begin();
+  for (auto clusterIte = results.begin(); clusterIte != results.end();
+       ++clusterIte) {
+    auto resultCluster = clusterIte->get();
+    for (auto ite = resultCluster.begin(); ite != resultCluster.end();
+         ++ite, ++i, ++r) {
+      // Loop unswitching should occur
+      if (reflectance) {
+        *i = ite->second;
+        *r = ite->first;
+      } else
+        *r = ite->first;
     }
   }
 }
