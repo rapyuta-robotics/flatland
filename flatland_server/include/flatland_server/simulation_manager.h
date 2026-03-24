@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_SIMULATION_MANAGER_H
 #define FLATLAND_SERVER_SIMULATION_MANAGER_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/world.h>

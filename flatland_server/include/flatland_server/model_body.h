@@ -80,7 +80,7 @@ class ModelBody : public Body {
    * @param[in] linear_damping Box2D body linear damping
    * @param[in] angular_damping Box2D body angular damping
    */
-  ModelBody(b2World *physics_world, CollisionFilterRegistry *cfr, Model *model,
+  ModelBody(b2WorldId physics_world, CollisionFilterRegistry *cfr, Model *model,
             const std::string &name, const Color &color, const Pose &pose,
             b2BodyType body_type, const YAML::Node &properties,
             double linear_damping, double angular_damping);
@@ -104,7 +104,7 @@ class ModelBody : public Body {
    * @param[out] fixture_def Box2D fixture definition
    */
   void ConfigFootprintDef(YamlReader &footprint_reader,
-                          b2FixtureDef &fixture_def);
+                          b2ShapeDef &shape_def);
 
   /**
    * @brief Loads a circle footprint
@@ -127,7 +127,7 @@ class ModelBody : public Body {
    * @param[in] model The model this model body belongs to
    * @param[in] body_node YAML reader for node containing the body parameters
    */
-  static ModelBody *MakeBody(b2World *physics_world,
+  static ModelBody *MakeBody(b2WorldId physics_world,
                              CollisionFilterRegistry *cfr, Model *model,
                              YamlReader &body_node);
 };

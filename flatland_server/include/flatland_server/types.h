@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <geometry_msgs/Pose2D.h>
 
 #ifndef FLATLAND_SERVER_TYPES_H

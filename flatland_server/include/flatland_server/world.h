@@ -47,7 +47,8 @@
 #ifndef FLATLAND_SERVER_WORLD_H
 #define FLATLAND_SERVER_WORLD_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
+#include <enkiTS/TaskScheduler.h>
 #include <flatland_server/collision_filter_registry.h>
 #include <flatland_server/interactive_marker_manager.h>
 #include <flatland_server/layer.h>
@@ -66,10 +67,10 @@ namespace flatland_server {
  * that can represent environments at multiple levels, and models which are
  * can be robots or obstacles.
  */
-class World : public b2ContactListener {
+class World {
  public:
   boost::filesystem::path world_yaml_dir_;  ///<directory containing world file
-  b2World *physics_world_;                  ///< Box2D physics world
+  b2WorldId world_id_;                      ///< Box2D v3 physics world ID
   b2Vec2 gravity_;  ///< Box2D world gravity, always (0, 0)
   std::map<std::vector<std::string>, Layer *>
       layers_name_map_;           ///< map of all layers and thier name
@@ -81,8 +82,8 @@ class World : public b2ContactListener {
                          /// call or not
   InteractiveMarkerManager
       int_marker_manager_;  ///< for dynamically moving models from Rviz
-  int physics_position_iterations_;  ///< Box2D solver param
-  int physics_velocity_iterations_;  ///< Box2D solver param
+  int physics_velocity_iterations_;  ///< Box2D solver velocity iterations
+  enki::TaskScheduler task_scheduler_;  ///< enkiTS multi-core task scheduler
 
   /**
    * @brief Constructor for the world class. All data required for
@@ -100,32 +101,6 @@ class World : public b2ContactListener {
    * @param[in] timekeeper The time keeping object
    */
   void Update(Timekeeper &timekeeper);
-
-  /**
-   * @brief Box2D inherited begin contact
-   * @param[in] contact Box2D contact information
-   */
-  void BeginContact(b2Contact *contact) override;
-
-  /**
-   * @brief Box2D inherited end contact
-   * @param[in] contact Box2D contact information
-   */
-  void EndContact(b2Contact *contact) override;
-
-  /**
-   * @brief Box2D inherited presolve
-   * @param[in] contact Box2D contact information
-   * @param[in] oldManifold The manifold from the previous timestep
-   */
-  void PreSolve(b2Contact *contact, const b2Manifold *oldManifold);
-
-  /**
-   * @brief Box2D inherited pre solve
-   * @param[in] contact Box2D contact information
-   * @param[in] impulse The calculated impulse from the collision resolute
-   */
-  void PostSolve(b2Contact *contact, const b2ContactImpulse *impulse);
 
   /*
    * @brief Load world plugins

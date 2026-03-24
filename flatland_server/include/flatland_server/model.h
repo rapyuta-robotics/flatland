@@ -79,7 +79,7 @@ class Model : public Entity {
    * @param[in] cfr Collision filter registry
    * @param[in] name Name of the model
    */
-  Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Model(b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
 
   /**
@@ -190,7 +190,7 @@ class Model : public Entity {
    * @param[in] name Name of the model
    * @return A new model
    */
-  static Model *MakeModel(b2World *physics_world, CollisionFilterRegistry *cfr,
+  static Model *MakeModel(b2WorldId physics_world, CollisionFilterRegistry *cfr,
                           const std::string &model_yaml_path,
                           const std::string &ns, const std::string &name);
 };

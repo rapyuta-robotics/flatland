@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_plugins/tween.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/model_plugin.h>
@@ -112,9 +112,9 @@ void Tween::OnInitialize(const YAML::Node& config) {
   if (body_ == nullptr) {
     throw YAMLException("Body with name " + Q(body_name) + " does not exist");
   }
-  start_ = Pose(body_->physics_body_->GetPosition().x,
-                body_->physics_body_->GetPosition().y,
-                body_->physics_body_->GetAngle());
+  start_ = Pose(b2Body_GetPosition(body_->physics_body_).x,
+                b2Body_GetPosition(body_->physics_body_).y,
+                b2Rot_GetAngle(b2Body_GetRotation(body_->physics_body_)));
 
   // Validate the mode selection
   if (!Tween::mode_strings_.count(mode)) {
@@ -253,10 +253,12 @@ void Tween::BeforePhysicsStep(const Timekeeper& timekeeper) {
   ROS_DEBUG_THROTTLE_NAMED(1.0, "Tween", "value %f,%f,%f step %f progress %f",
                            v[0], v[1], v[2], timekeeper.GetStepSize(),
                            tween_.progress());
-  body_->physics_body_->SetTransform(b2Vec2(start_.x + v[0], start_.y + v[1]),
-                                     start_.theta + v[2]);
+  b2Vec2 new_pos = {static_cast<float>(start_.x + v[0]),
+                    static_cast<float>(start_.y + v[1])};
+  b2Rot new_rot = b2MakeRot(static_cast<float>(start_.theta + v[2]));
+  b2Body_SetTransform(body_->physics_body_, new_pos, new_rot);
   // Tell Box2D to update the AABB and check for collisions for this object
-  body_->physics_body_->SetAwake(true);
+  b2Body_SetAwake(body_->physics_body_, true);
 
   // Yoyo back and forth
   if (mode_ == Tween::ModeType_::YOYO) {

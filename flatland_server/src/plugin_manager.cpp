@@ -219,29 +219,24 @@ void PluginManager::LoadWorldPlugin(World *world, YamlReader &plugin_reader,
   ROS_INFO_NAMED("PluginManager", "%s loaded ", msg.c_str());
 }
 
-void PluginManager::BeginContact(b2Contact *contact) {
+void PluginManager::BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
   for (auto &model_plugin : model_plugins_) {
-    model_plugin->BeginContact(contact);
+    model_plugin->BeginContact(shapeIdA, shapeIdB);
   }
 }
 
-void PluginManager::EndContact(b2Contact *contact) {
+void PluginManager::EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
   for (auto &model_plugin : model_plugins_) {
-    model_plugin->EndContact(contact);
+    model_plugin->EndContact(shapeIdA, shapeIdB);
   }
 }
 
-void PluginManager::PreSolve(b2Contact *contact,
-                             const b2Manifold *oldManifold) {
+void PluginManager::OnContactHit(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                                  b2Vec2 point, b2Vec2 normal,
+                                  float approachSpeed) {
   for (auto &model_plugin : model_plugins_) {
-    model_plugin->PreSolve(contact, oldManifold);
-  }
-}
-
-void PluginManager::PostSolve(b2Contact *contact,
-                              const b2ContactImpulse *impulse) {
-  for (auto &model_plugin : model_plugins_) {
-    model_plugin->PostSolve(contact, impulse);
+    model_plugin->OnContactHit(shapeIdA, shapeIdB, point, normal,
+                               approachSpeed);
   }
 }
 

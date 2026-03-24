@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_plugins/world_modifier.h>
 #include <flatland_plugins/world_random_wall.h>
 #include <flatland_server/types.h>
@@ -97,9 +97,10 @@ void RandomWall::OnInitialize(const YAML::Node &config) {
     }
     if (reader.Get<std::string>("name") == robot_name) {
       robot_ini_pose = reader.Get("pose", Pose(0, 0, 0));
-      b2Transform tran = layer->body_->physics_body_->GetTransform();
-      b2Vec2 ini_pose =
-          b2MulT(tran, b2Vec2(robot_ini_pose.x, robot_ini_pose.y));
+      b2Transform tran = b2Body_GetTransform(layer->body_->physics_body_);
+      b2Vec2 ini_b2 = {static_cast<float>(robot_ini_pose.x),
+                       static_cast<float>(robot_ini_pose.y)};
+      b2Vec2 ini_pose = b2InvTransformPoint(tran, ini_b2);
       robot_ini_pose.x = ini_pose.x;
       robot_ini_pose.y = ini_pose.y;
       break;
@@ -111,16 +112,23 @@ void RandomWall::OnInitialize(const YAML::Node &config) {
                          robot_ini_pose);
 
   // get all walls
-  std::vector<b2EdgeShape *> Wall_List;
-  for (b2Fixture *f = layer->body_->physics_body_->GetFixtureList(); f;
-       f = f->GetNext()) {
-    Wall_List.push_back(static_cast<b2EdgeShape *>(f->GetShape()));
+  // Collect all segment shapes from the layer body
+  int shape_count = b2Body_GetShapeCount(layer->body_->physics_body_);
+  std::vector<b2ShapeId> all_shapes(shape_count);
+  b2Body_GetShapes(layer->body_->physics_body_, all_shapes.data(), shape_count);
+
+  std::vector<b2Segment> wall_segments;
+  for (const auto &sid : all_shapes) {
+    if (b2Shape_GetType(sid) == b2_segmentShape) {
+      wall_segments.push_back(b2Shape_GetSegment(sid));
+    }
   }
+
   std::srand(std::time(0));
-  std::random_shuffle(Wall_List.begin(), Wall_List.end());
+  std::random_shuffle(wall_segments.begin(), wall_segments.end());
   try {
-    for (unsigned int i = 0; i < num_of_walls; i++) {
-      modifier.AddFullWall(Wall_List[i]);
+    for (unsigned int i = 0; i < num_of_walls && i < wall_segments.size(); i++) {
+      modifier.AddFullWall(&wall_segments[i]);
     }
   } catch (std::string e) {
     throw e;

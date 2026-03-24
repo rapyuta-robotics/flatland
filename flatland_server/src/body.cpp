@@ -49,58 +49,56 @@
 
 namespace flatland_server {
 
-Body::Body(b2World *physics_world, Entity *entity, const std::string &name,
+Body::Body(b2WorldId physics_world, Entity *entity, const std::string &name,
            const Color &color, const Pose &pose, b2BodyType body_type,
            const YAML::Node &properties, double linear_damping,
            double angular_damping)
     : entity_(entity), name_(name), color_(color), properties_(properties) {
-  b2BodyDef body_def;
+  b2BodyDef body_def = b2DefaultBodyDef();
   body_def.type = body_type;
-  body_def.position.Set(pose.x, pose.y);
-  body_def.angle = pose.theta;
-  body_def.linearDamping = linear_damping;
-  body_def.angularDamping = angular_damping;
+  body_def.position = {static_cast<float>(pose.x), static_cast<float>(pose.y)};
+  body_def.rotation = b2MakeRot(static_cast<float>(pose.theta));
+  body_def.linearDamping = static_cast<float>(linear_damping);
+  body_def.angularDamping = static_cast<float>(angular_damping);
 
-  physics_body_ = physics_world->CreateBody(&body_def);
-  physics_body_->SetUserData(this);
+  physics_body_ = b2CreateBody(physics_world, &body_def);
+  b2Body_SetUserData(physics_body_, this);
 }
 
 Body::~Body() {
-  if (physics_body_) {
-    physics_body_->GetWorld()->DestroyBody(physics_body_);
+  if (b2Body_IsValid(physics_body_)) {
+    b2DestroyBody(physics_body_);
   }
 }
 
-int Body::GetFixturesCount() const {
-  int count = 0;
-  for (b2Fixture *f = physics_body_->GetFixtureList(); f; f = f->GetNext()) {
-    count++;
-  }
-
-  return count;
+int Body::GetShapesCount() const {
+  return b2Body_GetShapeCount(physics_body_);
 }
 
 Entity *Body::GetEntity() { return entity_; }
 
 const std::string &Body::GetName() const { return name_; }
 
-b2Body *Body::GetPhysicsBody() { return physics_body_; }
+b2BodyId Body::GetPhysicsBody() { return physics_body_; }
 
 const Color &Body::GetColor() const { return color_; }
 
 void Body::SetColor(const Color &color) { color_ = color; }
 
 void Body::DebugOutput() const {
+  b2Vec2 pos = b2Body_GetPosition(physics_body_);
+  float angle = b2Rot_GetAngle(b2Body_GetRotation(physics_body_));
   ROS_DEBUG_NAMED(
       "Body",
       "Body %p: entity(%p, %s) name(%s) color(%f,%f,%f,%f) "
-      "physics_body(%p) num_fixtures(%d) type(%d) pose(%f, %f, %f) "
+      "num_shapes(%d) type(%d) pose(%f, %f, %f) "
       "angular_damping(%f) linear_damping(%f)",
       this, entity_, entity_->name_.c_str(), name_.c_str(), color_.r, color_.g,
-      color_.b, color_.a, physics_body_, GetFixturesCount(),
-      physics_body_->GetType(), physics_body_->GetPosition().x,
-      physics_body_->GetPosition().y, physics_body_->GetAngle(),
-      physics_body_->GetAngularDamping(), physics_body_->GetLinearDamping());
+      color_.b, color_.a, GetShapesCount(),
+      static_cast<int>(b2Body_GetType(physics_body_)),
+      pos.x, pos.y, angle,
+      b2Body_GetAngularDamping(physics_body_),
+      b2Body_GetLinearDamping(physics_body_));
 }
 
 };  // namespace flatland_server

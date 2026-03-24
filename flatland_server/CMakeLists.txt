@@ -1,8 +1,11 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.11)
 project(flatland_server)
 
-# Ensure we're using c++11
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+# Box2D v3 requires C17 for its headers; Flatland server uses C++17
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -43,6 +46,27 @@ find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED COMPONENTS date_time system thread)
 find_package(Threads)
 
+# Box2D v3 + enkiTS via FetchContent
+include(FetchContent)
+
+FetchContent_Declare(
+  box2d
+  GIT_REPOSITORY https://github.com/erincatto/box2d.git
+  GIT_TAG        v3.1.0
+)
+# Disable Box2D samples/tests/benchmarks to avoid needing OpenGL
+set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(box2d)
+
+FetchContent_Declare(
+  enkiTS
+  GIT_REPOSITORY https://github.com/dougbinks/enkiTS.git
+  GIT_TAG        v2.10
+)
+FetchContent_MakeAvailable(enkiTS)
+
 ##############
 ## coverage ##
 ##############
@@ -58,8 +82,8 @@ endif()
 ## catkin specific configuration ##
 ###################################
 catkin_package(
-  INCLUDE_DIRS include thirdparty
-  LIBRARIES flatland_lib flatland_Box2D
+  INCLUDE_DIRS include
+  LIBRARIES flatland_lib
   CATKIN_DEPENDS pluginlib roscpp std_msgs tf2 visualization_msgs tf2_geometry_msgs geometry_msgs
   DEPENDS OpenCV YAML_CPP
 )
@@ -75,10 +99,7 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${LUA_INCLUDE_DIR}
-  thirdparty
 )
-
-add_subdirectory("thirdparty/Box2D")
 
 ## Flatland server library
 add_library(flatland_lib
@@ -111,7 +132,8 @@ target_link_libraries(flatland_lib
   ${OpenCV_LIBRARIES}
   ${Boost_LIBRARIES}
   ${LUA_LIBRARIES}
-  flatland_Box2D
+  box2d
+  enkiTS
   yaml-cpp
 )
 
@@ -130,7 +152,8 @@ target_link_libraries(flatland_server
   ${OpenCV_LIBRARIES}
   ${Boost_LIBRARIES}
   ${LUA_LIBRARIES}
-  flatland_Box2D
+  box2d
+  enkiTS
   yaml-cpp
   flatland_lib
 )

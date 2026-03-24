@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_WORLD_PLUGIN_H
 #define FLATLAND_SERVER_WORLD_PLUGIN_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/flatland_plugin.h>
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/yaml_reader.h>

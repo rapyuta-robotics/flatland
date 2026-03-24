@@ -52,7 +52,7 @@ void Gps::ComputeReferenceEcef() {
 }
 
 void Gps::UpdateFix() {
-  const b2Transform &t = body_->GetPhysicsBody()->GetTransform();
+  b2Transform t = b2Body_GetTransform(body_->GetPhysicsBody());
   Eigen::Matrix3f m_world_to_body;
   m_world_to_body << t.q.c, -t.q.s, t.p.x, t.q.s, t.q.c, t.p.y, 0, 0, 1;
   Eigen::Matrix3f m_world_to_gps = m_world_to_body * m_body_to_gps_;

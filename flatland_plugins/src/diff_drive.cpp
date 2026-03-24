@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_plugins/diff_drive.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/model_plugin.h>
@@ -172,10 +172,10 @@ void DiffDrive::OnInitialize(const YAML::Node& config) {
 void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   bool publish = update_timer_.CheckUpdate(timekeeper);
 
-  b2Body* b2body = body_->physics_body_;
+  b2BodyId b2body = body_->physics_body_;
 
-  b2Vec2 position = b2body->GetPosition();
-  float angle = b2body->GetAngle();
+  b2Vec2 position = b2Body_GetPosition(b2body);
+  float angle = b2Rot_GetAngle(b2Body_GetRotation(b2body));
 
   // Apply dynamics limits
   double dt = timekeeper.GetStepSize();
@@ -185,9 +185,9 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   // we apply the twist velocities, this must be done every physics step to make
   // sure Box2D solver applies the correct velocity through out. The velocity
   // given in the twist message should be in the local frame
-  b2Vec2 linear_vel_local(linear_velocity_, 0);
-  b2Vec2 linear_vel = b2body->GetWorldVector(linear_vel_local);
-  float angular_vel = angular_velocity_;  // angular is independent of frames
+  b2Vec2 linear_vel_local = {static_cast<float>(linear_velocity_), 0.0f};
+  b2Vec2 linear_vel = b2Body_GetWorldVector(b2body, linear_vel_local);
+  float angular_vel = static_cast<float>(angular_velocity_);
 
   // we want the velocity vector in the world frame at the center of mass
 
@@ -197,19 +197,22 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   // center of mass
 
   // r is the vector from body origin to the CM in world frame
-  b2Vec2 r = b2body->GetWorldCenter() - position;
-  b2Vec2 linear_vel_cm = linear_vel + angular_vel * b2Vec2(-r.y, r.x);
+  b2Vec2 com = b2Body_GetLocalCenterOfMass(b2body);
+  b2Vec2 wcom = b2Body_GetWorldPoint(b2body, com);
+  b2Vec2 r = {wcom.x - position.x, wcom.y - position.y};
+  b2Vec2 linear_vel_cm = {linear_vel.x + angular_vel * (-r.y),
+                          linear_vel.y + angular_vel * r.x};
 
-  b2body->SetLinearVelocity(linear_vel_cm);
-  b2body->SetAngularVelocity(angular_vel);
+  b2Body_SetLinearVelocity(b2body, linear_vel_cm);
+  b2Body_SetAngularVelocity(b2body, angular_vel);
 
   // Update odom+ground truth messages if needed
 
   if (publish) {
     // get the state of the body and publish the data
-    b2Vec2 linear_vel_local =
-        b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0));
-    float angular_vel = b2body->GetAngularVelocity();
+    b2Vec2 local_vel_world = b2Body_GetLinearVelocity(b2body);
+    b2Vec2 linear_vel_local_meas = b2Body_GetLocalVector(b2body, local_vel_world);
+    float angular_vel = b2Body_GetAngularVelocity(b2body);
 
     ground_truth_msg_.header.stamp = timekeeper.GetSimTime();
     ground_truth_msg_.pose.pose.position.x = position.x;
@@ -217,8 +220,8 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
     ground_truth_msg_.pose.pose.position.z = 0;
     ground_truth_msg_.pose.pose.orientation =
         tf::createQuaternionMsgFromYaw(angle);
-    ground_truth_msg_.twist.twist.linear.x = linear_vel_local.x;
-    ground_truth_msg_.twist.twist.linear.y = linear_vel_local.y;
+    ground_truth_msg_.twist.twist.linear.x = linear_vel_local_meas.x;
+    ground_truth_msg_.twist.twist.linear.y = linear_vel_local_meas.y;
     ground_truth_msg_.twist.twist.linear.z = 0;
     ground_truth_msg_.twist.twist.angular.x = 0;
     ground_truth_msg_.twist.twist.angular.y = 0;
@@ -249,8 +252,8 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
       twist_pub_msg.header.frame_id = odom_msg_.child_frame_id;
 
       // Forward velocity in twist.linear.x
-      twist_pub_msg.twist.linear.x = cos(angle) * linear_vel_local.x +
-                                     sin(angle) * linear_vel_local.y +
+      twist_pub_msg.twist.linear.x = cos(angle) * linear_vel_local_meas.x +
+                                     sin(angle) * linear_vel_local_meas.y +
                                      noise_gen_[3](rng_);
 
       // Angular velocity in twist.angular.z

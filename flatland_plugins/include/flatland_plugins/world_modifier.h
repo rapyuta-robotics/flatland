@@ -46,7 +46,7 @@
 #ifndef WORLD_MODIFIER_H
 #define WORLD_MODIFIER_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/types.h>
 #include <flatland_server/world.h>
 #include <flatland_server/yaml_reader.h>
@@ -77,15 +77,17 @@ struct LaserRead {
         increment_(increment) {}
 };
 
-struct RayTrace : public b2RayCastCallback {
+struct RayTrace {
   bool is_hit_;
   float fraction_;
   uint16_t category_bits_;
   RayTrace(uint16_t category_bits)
-      : is_hit_(false), category_bits_(category_bits) {}
-  float ReportFixture(b2Fixture *fixture, const b2Vec2 &point,
-                      const b2Vec2 &normal, float fraction) override;
+      : is_hit_(false), fraction_(0.0f), category_bits_(category_bits) {}
 };
+
+/// Box2D v3 ray cast free function for RayTrace
+float RayTraceRayCastFcn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal,
+                         float fraction, void *context);
 
 struct WorldModifier {
   // private members
@@ -105,20 +107,20 @@ struct WorldModifier {
   * @param[out] b2EdgeShape new_wall, reference passed in to set the vertices
   */
   void CalculateNewWall(double d, b2Vec2 vertex1, b2Vec2 vertex2,
-                        b2EdgeShape &new_wall);
+                        b2Segment &new_wall);
 
   /*
   * @brief add the new wall into the world
   * @param[in] new_wall, the wall that's going to be added
   */
-  void AddWall(b2EdgeShape &new_wall);
+  void AddWall(b2Segment &new_wall);
 
   /*
   * @brief add two side walls to make it a full obstacle
   * @param[in] old_wall, the old wall where new wall is added on top to
   * @param[in] new_wall, the new wall got added
   */
-  void AddSideWall(b2EdgeShape &old_wall, b2EdgeShape &new_wall);
+  void AddSideWall(b2Segment &old_wall, b2Segment &new_wall);
 
   /*
    * @brief constructor for WorldModifier
@@ -137,7 +139,7 @@ struct WorldModifier {
   * @param[in] b2EdgeShape *wall, old wall where new wall will be added on top
   * to
   */
-  void AddFullWall(b2EdgeShape *wall);
+  void AddFullWall(b2Segment *wall);
 
 };      // class WorldModifier
 };      // namespace flatland_server
