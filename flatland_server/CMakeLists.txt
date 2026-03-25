@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 3.11)
 project(flatland_server)
 
-# Box2D v3 requires C17 for its headers; Flatland server uses C++17
+# Flatland server uses C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_STANDARD 17)
-set(CMAKE_C_STANDARD_REQUIRED ON)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
