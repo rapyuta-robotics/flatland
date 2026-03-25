@@ -47,7 +47,7 @@
 #ifndef FLATLAND_PLUGIN_MANAGER_H
 #define FLATLAND_PLUGIN_MANAGER_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/model.h>
 #include <flatland_server/model_plugin.h>
 #include <flatland_server/timekeeper.h>
@@ -115,29 +115,28 @@ class PluginManager {
 
   /**
    * @brief Method called for a box2D begin contact
-   * @param[in] contact Box2D contact information
+   * @param[in] shapeIdA First shape
+   * @param[in] shapeIdB Second shape
    */
-  void BeginContact(b2Contact *contact);
+  void BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB);
 
   /**
    * @brief Method called for a box2D end contact
-   * @param[in] contact Box2D contact information
+   * @param[in] shapeIdA First shape
+   * @param[in] shapeIdB Second shape
    */
-  void EndContact(b2Contact *contact);
+  void EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB);
 
   /**
-   * @brief Method called for Box2D presolve
-   * @param[in] contact Box2D contact information
-   * @param[in] oldManifold The manifold from the previous timestep
+   * @brief Method called for Box2D contact hit events
+   * @param[in] shapeIdA First shape
+   * @param[in] shapeIdB Second shape
+   * @param[in] point World-space contact point
+   * @param[in] normal Contact normal
+   * @param[in] approachSpeed Approach speed
    */
-  void PreSolve(b2Contact *contact, const b2Manifold *oldManifold);
-
-  /**
-   * @brief Method called for Box2D Postsolve
-   * @param[in] contact Box2D contact information
-   * @param[in] impulse The calculated impulse from the collision resolute
-   */
-  void PostSolve(b2Contact *contact, const b2ContactImpulse *impulse);
+  void OnContactHit(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                    b2Vec2 point, b2Vec2 normal, float approachSpeed);
 };
 };      // namespace flatland_server
 #endif  // FLATLAND_PLUGIN_MANAGER_H

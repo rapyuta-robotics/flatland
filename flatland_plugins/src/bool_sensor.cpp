@@ -112,11 +112,11 @@ void BoolSensor::AfterPhysicsStep(const Timekeeper &timekeeper) {
   publisher_.publish(msg);
 }
 
-void BoolSensor::BeginContact(b2Contact *contact) {
-  if (!FilterContact(contact)) return;
+void BoolSensor::BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
+  if (!FilterContact(shapeIdA, shapeIdB)) return;
 
-  // Skip collisions with other fixtures on this body
-  if (contact->GetFixtureA()->GetBody() == contact->GetFixtureB()->GetBody()) {
+  // Skip collisions with other shapes on the same body
+  if (B2_ID_EQUALS(b2Shape_GetBody(shapeIdA), b2Shape_GetBody(shapeIdB))) {
     return;
   }
 
@@ -124,11 +124,11 @@ void BoolSensor::BeginContact(b2Contact *contact) {
   hit_something_ = true;
 }
 
-void BoolSensor::EndContact(b2Contact *contact) {
-  if (!FilterContact(contact)) return;
+void BoolSensor::EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
+  if (!FilterContact(shapeIdA, shapeIdB)) return;
 
-  // Skip collisions with other fixtures on this body
-  if (contact->GetFixtureA()->GetBody() == contact->GetFixtureB()->GetBody()) {
+  // Skip collisions with other shapes on the same body
+  if (B2_ID_EQUALS(b2Shape_GetBody(shapeIdA), b2Shape_GetBody(shapeIdB))) {
     return;
   }
 

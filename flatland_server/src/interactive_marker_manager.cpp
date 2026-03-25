@@ -211,12 +211,11 @@ void InteractiveMarkerManager::update() {
   // an interactive marker
   if (!manipulating_model_) {
     for (size_t i = 0; i < (*models_).size(); i++) {
+      b2BodyId root_body = (*models_)[i]->bodies_[0]->physics_body_;
       geometry_msgs::Pose new_pose;
-      new_pose.position.x =
-          (*models_)[i]->bodies_[0]->physics_body_->GetPosition().x;
-      new_pose.position.y =
-          (*models_)[i]->bodies_[0]->physics_body_->GetPosition().y;
-      double theta = (*models_)[i]->bodies_[0]->physics_body_->GetAngle();
+      new_pose.position.x = b2Body_GetPosition(root_body).x;
+      new_pose.position.y = b2Body_GetPosition(root_body).y;
+      double theta = b2Rot_GetAngle(b2Body_GetRotation(root_body));
       new_pose.orientation.w = cos(0.5 * theta);
       new_pose.orientation.z = sin(0.5 * theta);
       interactive_marker_server_->setPose((*models_)[i]->GetName(), new_pose);

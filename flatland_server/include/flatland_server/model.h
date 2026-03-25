@@ -50,6 +50,7 @@
 #include <flatland_server/collision_filter_registry.h>
 #include <flatland_server/entity.h>
 #include <flatland_server/joint.h>
+#include <flatland_server/message_server.h>
 #include <flatland_server/model_body.h>
 #include <flatland_server/yaml_reader.h>
 #include <yaml-cpp/yaml.h>
@@ -59,12 +60,16 @@ namespace flatland_server {
 
 class ModelBody;
 class Joint;
+class World;
 
 /**
  * This class defines a Model. It can be used to repsent any object in the
  * environment such robots, chairs, deskes etc.
  */
 class Model : public Entity {
+ private:
+  World *world_;  ///< pointer to parent world (may be nullptr for legacy construction)
+
  public:
   std::string namespace_;            ///< namespace of the model
   std::vector<ModelBody *> bodies_;  ///< list of bodies in the model
@@ -79,7 +84,9 @@ class Model : public Entity {
    * @param[in] cfr Collision filter registry
    * @param[in] name Name of the model
    */
-  Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Model(b2WorldId physics_world, CollisionFilterRegistry *cfr,
+        const std::string &ns, const std::string &name);
+  Model(World *world, b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
 
   /**
@@ -110,6 +117,9 @@ class Model : public Entity {
    * @param[in] name Name of the body
    * @return pointer to the body, nullptr indicates body cannot be found
    */
+  World &GetWorld() const;
+  MessageServer &GetMessageServer() const;
+
   ModelBody *GetBody(const std::string &name);
 
   /**
@@ -190,7 +200,11 @@ class Model : public Entity {
    * @param[in] name Name of the model
    * @return A new model
    */
-  static Model *MakeModel(b2World *physics_world, CollisionFilterRegistry *cfr,
+  static Model *MakeModel(b2WorldId physics_world, CollisionFilterRegistry *cfr,
+                          const std::string &model_yaml_path,
+                          const std::string &ns, const std::string &name);
+  static Model *MakeModel(World *world, b2WorldId physics_world,
+                          CollisionFilterRegistry *cfr,
                           const std::string &model_yaml_path,
                           const std::string &ns, const std::string &name);
 };

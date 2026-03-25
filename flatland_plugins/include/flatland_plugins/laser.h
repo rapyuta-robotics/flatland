@@ -51,11 +51,9 @@
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
 #include <tf/transform_broadcaster.h>
-#include <thirdparty/ThreadPool.h>
 #include <visualization_msgs/Marker.h>
 #include <Eigen/Dense>
 #include <random>
-#include <thread>
 
 #ifndef FLATLAND_PLUGINS_LASER_H
 #define FLATLAND_PLUGINS_LASER_H
@@ -82,7 +80,6 @@ class Laser : public ModelPlugin {
   std::string frame_id_;  ///< laser frame id name
   bool broadcast_tf_;     ///< whether to broadcast laser origin w.r.t body
   uint16_t layers_bits_;  ///< for setting the layers where laser will function
-  ThreadPool pool_;       ///< ThreadPool for managing concurrent scan threads
 
   /*
    * for setting reflectance layers. if the laser hits those layers,
@@ -106,14 +103,6 @@ class Laser : public ModelPlugin {
   tf::TransformBroadcaster tf_broadcaster_;   ///< broadcast laser frame
   geometry_msgs::TransformStamped laser_tf_;  ///< tf from body to laser frame
   UpdateTimer update_timer_;                  ///< for controlling update rate
-
-  /**
-   * @brief Constructor to start the threadpool with N+1 threads
-   */
-  Laser() : pool_(std::thread::hardware_concurrency() + 1) {
-    ROS_INFO_STREAM("Laser plugin loaded with "
-                    << (std::thread::hardware_concurrency() + 1) << " threads");
-  };
 
   /**
    * @brief Initialization for the plugin
@@ -140,32 +129,20 @@ class Laser : public ModelPlugin {
 };
 
 /**
- * This class handles the b2RayCastCallback ReportFixture method
- * allowing each thread to access its own callback object
+ * Context passed to the Box2D v3 ray cast free function
  */
-class LaserCallback : public b2RayCastCallback {
- public:
-  bool did_hit_ = false;  ///< Box2D ray trace checking if ray hits anything
-  float fraction_ = 0;    ///< Box2D ray trace fraction
-  float intensity_ = 0;   ///< Intensity of raytrace collision
-  Laser *parent_;         ///< The parent Laser plugin
-
-  /**
-   * Default constructor to assign parent object
-   */
-  LaserCallback(Laser *parent) : parent_(parent){};
-
-  /**
-   * @brief Box2D raytrace call back method required for implementing the
-   * b2RayCastCallback abstract class
-   * @param[in] fixture Fixture the ray hits
-   * @param[in] point Point the ray hits the fixture
-   * @param[in] normal Vector indicating the normal at the point hit
-   * @param[in] fraction Fraction of ray length at hit point
-   */
-  float ReportFixture(b2Fixture *fixture, const b2Vec2 &point,
-                      const b2Vec2 &normal, float fraction) override;
+struct LaserRayContext {
+  bool did_hit = false;
+  float fraction = 0.0f;
+  float intensity = 0.0f;
+  uint16_t layers_bits;
+  uint16_t reflectance_layers_bits;
 };
-};
+
+/// Box2D v3 ray cast callback (free function)
+float LaserRayCastFcn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal,
+                      float fraction, void *context);
+
+};  // namespace flatland_plugins
 
 #endif

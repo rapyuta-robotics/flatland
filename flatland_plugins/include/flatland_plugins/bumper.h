@@ -47,6 +47,8 @@
 #include <flatland_plugins/update_timer.h>
 #include <flatland_server/model_plugin.h>
 #include <ros/ros.h>
+#include <algorithm>
+#include <cstdint>
 
 #ifndef FLATLAND_PLUGINS_BUMPER_H
 #define FLATLAND_PLUGINS_BUMPER_H
@@ -61,19 +63,37 @@ namespace flatland_plugins {
  */
 class Bumper : public ModelPlugin {
  public:
+  /// Opaque key uniquely identifying a contact between two shapes (order-independent)
+  struct ContactKey {
+    b2ShapeId shapeIdA;
+    b2ShapeId shapeIdB;
+
+    static uint64_t Encode(b2ShapeId id) {
+      return (static_cast<uint64_t>(id.index1) << 32) |
+             (static_cast<uint64_t>(id.generation) << 16) |
+             static_cast<uint64_t>(id.world0);
+    }
+    bool operator<(const ContactKey &o) const {
+      uint64_t a = Encode(shapeIdA), b = Encode(shapeIdB);
+      uint64_t oa = Encode(o.shapeIdA), ob = Encode(o.shapeIdB);
+      if (a > b) std::swap(a, b);
+      if (oa > ob) std::swap(oa, ob);
+      if (a != oa) return a < oa;
+      return b < ob;
+    }
+  };
+
   struct ContactState {
-    int num_count;  ///< stores number of times post solve is called
-    double sum_normal_impulses[2];      ///< sum of impulses for averaging later
-    double sum_tangential_impulses[2];  ///< sum of impulses for averaging later
-    b2Vec2 points[2];  ///< Box2D collision points, max of 2 from Box2D
-    b2Vec2 normal;  ///< normal of collision points, all points have same normal
-    int normal_sign;  ///< for flipping direction of normal when necessary
+    int num_count;       ///< number of hit events accumulated
+    double sum_speed;    ///< sum of approach speeds
+    b2Vec2 point;        ///< last contact point
+    b2Vec2 normal;       ///< last contact normal
 
     Body *body_A;      ///< the body of the model involved in the collision
     Body *body_B;      ///< the other body involved in the collision
-    Entity *entity_B;  /// the entity the other body belongs to
+    Entity *entity_B;  ///< the entity the other body belongs to
 
-    ContactState();  ///< initializes counters and sums
+    ContactState();  ///< initializes counters
     void Reset();    ///< Reset counter and sums
   };
 
@@ -87,7 +107,7 @@ class Bumper : public ModelPlugin {
   UpdateTimer update_timer_;  ///< for managing update rate
 
   /// For keeping track of contacts
-  std::map<b2Contact *, ContactState> contact_states_;
+  std::map<ContactKey, ContactState> contact_states_;
   ros::Publisher collisions_publisher_;  ///< For publishing the collisions
 
   /**
@@ -110,22 +130,29 @@ class Bumper : public ModelPlugin {
 
   /**
    * @brief A method that is called for all Box2D begin contacts
-   * @param[in] contact Box2D contact
+   * @param[in] shapeIdA First shape
+   * @param[in] shapeIdB Second shape
    */
-  void BeginContact(b2Contact *contact) override;
+  void BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) override;
 
   /**
    * @brief A method that is called for all Box2D end contacts
-   * @param[in] contact Box2D contact
+   * @param[in] shapeIdA First shape
+   * @param[in] shapeIdB Second shape
    */
-  void EndContact(b2Contact *contact) override;
+  void EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) override;
 
   /*
-   * @brief A method that is called for Box2D presolve
-   * @param[in] contact Box2D contact
-   * @param[in] oldManifold Manifold from the previous iteration
+   * @brief A method that is called for Box2D contact hit events
+   * @param[in] shapeIdA First shape
+   * @param[in] shapeIdB Second shape
+   * @param[in] point World-space contact point
+   * @param[in] normal Contact normal
+   * @param[in] approachSpeed Approach speed
    */
-  void PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) override;
+  void OnContactHit(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                    b2Vec2 point, b2Vec2 normal,
+                    float approachSpeed) override;
 };
 };
 

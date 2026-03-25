@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/exceptions.h>
 #include <flatland_server/types.h>
@@ -58,12 +58,67 @@
 
 namespace flatland_server {
 
+// --------------- enkiTS <-> Box2D v3 task adapter ---------------
+
+class FlatlandTask : public enki::ITaskSet {
+public:
+  FlatlandTask() = default;
+
+  void ExecuteRange(enki::TaskSetPartition range,
+                    uint32_t threadIndex) override {
+    m_task(range.start, range.end, threadIndex, m_taskContext);
+  }
+
+  b2TaskCallback *m_task = nullptr;
+  void *m_taskContext = nullptr;
+};
+
+static constexpr int kMaxTasks = 128;
+static FlatlandTask s_tasks[kMaxTasks];
+static int s_taskCount = 0;
+
+static void *EnkiEnqueueTask(b2TaskCallback *fcn, int32_t itemCount,
+                              int32_t minRange, void *taskContext,
+                              void *userContext) {
+  auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
+  if (s_taskCount < kMaxTasks) {
+    FlatlandTask &task = s_tasks[s_taskCount];
+    task.m_SetSize = itemCount;
+    task.m_MinRange = minRange;
+    task.m_task = fcn;
+    task.m_taskContext = taskContext;
+    scheduler->AddTaskSetToPipe(&task);
+    ++s_taskCount;
+    return &task;
+  }
+  // Fallback: run inline if pool exhausted
+  fcn(0, itemCount, 0, taskContext);
+  return nullptr;
+}
+
+static void EnkiFinishTask(void *userTask, void *userContext) {
+  if (userTask != nullptr) {
+    auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
+    auto *task = static_cast<FlatlandTask *>(userTask);
+    scheduler->WaitforTask(task);
+  }
+}
+
+// ----------------------------------------------------------------
+
 World::World()
-    : gravity_(0, 0),
+    : gravity_({0.0f, 0.0f}),
       service_paused_(false),
       int_marker_manager_(&models_, &plugin_manager_) {
-  physics_world_ = new b2World(gravity_);
-  physics_world_->SetContactListener(this);
+  task_scheduler_.Initialize();
+
+  b2WorldDef world_def = b2DefaultWorldDef();
+  world_def.gravity = gravity_;
+  world_def.workerCount = task_scheduler_.GetNumTaskThreads();
+  world_def.enqueueTask = EnkiEnqueueTask;
+  world_def.finishTask = EnkiFinishTask;
+  world_def.userTaskContext = &task_scheduler_;
+  world_id_ = b2CreateWorld(&world_def);
 }
 
 World::~World() {
@@ -72,15 +127,14 @@ World::~World() {
   // The order of things matters in the destructor. The contact listener is
   // removed first to avoid the triggering the contact functions in plugin
   // manager which might cause it to work with deleted layers/models.
-  physics_world_->SetContactListener(nullptr);
 
-  // the physics body of layers are set to null because there are tons of
-  // fixtures in a layer and it is too slow for the destroyBody method to remove
-  // them since the AABB tree gets restructured everytime a fixture is removed
-  // The memory will later be freed by deleting the world
+  // the physics body of layers are set to b2_nullBodyId because there are tons
+  // of shapes in a layer and it is too slow for the DestroyBody method to
+  // remove them since the AABB tree gets restructured every time a shape is
+  // removed. The memory will later be freed by destroying the world.
   for (auto &layer : layers_) {
     if (layer->body_ != nullptr) {
-      layer->body_->physics_body_ = nullptr;
+      layer->body_->physics_body_ = b2_nullBodyId;
     }
     delete layer;
   }
@@ -93,7 +147,9 @@ World::~World() {
   }
 
   // This frees the entire Box2D world with everything in it
-  delete physics_world_;
+  b2DestroyWorld(world_id_);
+  world_id_ = b2_nullWorldId;
+  task_scheduler_.WaitforAllAndShutdown();
 
   ROS_INFO_NAMED("World", "World destroyed");
 }
@@ -101,28 +157,30 @@ World::~World() {
 void World::Update(Timekeeper &timekeeper) {
   if (!IsPaused()) {
     plugin_manager_.BeforePhysicsStep(timekeeper);
-    physics_world_->Step(timekeeper.GetStepSize(), physics_velocity_iterations_,
-                         physics_position_iterations_);
+    s_taskCount = 0;  // Reset task pool for this step
+    b2World_Step(world_id_, timekeeper.GetStepSize(),
+                 physics_velocity_iterations_);
+
+    // Poll contact events (replaces b2ContactListener callbacks from v2)
+    b2ContactEvents events = b2World_GetContactEvents(world_id_);
+    for (int i = 0; i < events.beginCount; i++) {
+      const b2ContactBeginTouchEvent &e = events.beginEvents[i];
+      plugin_manager_.BeginContact(e.shapeIdA, e.shapeIdB);
+    }
+    for (int i = 0; i < events.endCount; i++) {
+      const b2ContactEndTouchEvent &e = events.endEvents[i];
+      plugin_manager_.EndContact(e.shapeIdA, e.shapeIdB);
+    }
+    for (int i = 0; i < events.hitCount; i++) {
+      const b2ContactHitEvent &e = events.hitEvents[i];
+      plugin_manager_.OnContactHit(e.shapeIdA, e.shapeIdB, e.point, e.normal,
+                                   e.approachSpeed);
+    }
+
     timekeeper.StepTime();
     plugin_manager_.AfterPhysicsStep(timekeeper);
   }
   int_marker_manager_.update();
-}
-
-void World::BeginContact(b2Contact *contact) {
-  plugin_manager_.BeginContact(contact);
-}
-
-void World::EndContact(b2Contact *contact) {
-  plugin_manager_.EndContact(contact);
-}
-
-void World::PreSolve(b2Contact *contact, const b2Manifold *oldManifold) {
-  plugin_manager_.PreSolve(contact, oldManifold);
-}
-
-void World::PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) {
-  plugin_manager_.PostSolve(contact, impulse);
 }
 
 World *World::MakeWorld(const std::string &yaml_path) {
@@ -135,8 +193,8 @@ World *World::MakeWorld(const std::string &yaml_path) {
   World *w = new World();
 
   w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
+  w->yaml_path_ = yaml_path;
   w->physics_velocity_iterations_ = v;
-  w->physics_position_iterations_ = p;
 
   try {
     YamlReader layers_reader = world_reader.Subnode("layers", YamlReader::LIST);
@@ -162,6 +220,36 @@ World *World::MakeWorld(const std::string &yaml_path) {
     throw e;
   }
   return w;
+}
+
+void World::LoadWorldEntities() {
+  try {
+    YamlReader map_info_reader = YamlReader(yaml_path_);
+    YamlReader layers_reader =
+        map_info_reader.Subnode("layers", YamlReader::LIST);
+    YamlReader models_reader =
+        map_info_reader.SubnodeOpt("models", YamlReader::LIST);
+    LoadLayers(layers_reader);
+    LoadModels(models_reader);
+  } catch (const YAMLException &e) {
+    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World",
+                                          yaml_path_ << " not loaded yet");
+    throw e;
+  }
+}
+
+void World::SlowSimTime(const std::string & /*agent*/) {
+  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+}
+
+void World::FastSimTime(const std::string & /*agent*/) {
+  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+}
+
+void World::InitializeDynamicFastSim(double /*max_lower_speed*/,
+                                      double /*min_lower_speed*/,
+                                      int /*num_robots_threshold*/) {
+  // Stub: dynamic fast-sim initialization not yet ported to Box2D v3 branch
 }
 
 void World::LoadLayers(YamlReader &layers_reader) {
@@ -205,7 +293,7 @@ void World::LoadLayers(YamlReader &layers_reader) {
     ROS_INFO_NAMED("World", "Loading layer \"%s\" from path=\"%s\"",
                    names[0].c_str(), map_path.string().c_str());
 
-    Layer *layer = Layer::MakeLayer(physics_world_, &cfr_, map_path.string(),
+    Layer *layer = Layer::MakeLayer(world_id_, &cfr_, map_path.string(),
                                     names, color, properties);
     layers_name_map_.insert(
         std::pair<std::vector<std::string>, Layer *>(names, layer));
@@ -258,7 +346,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                  abs_path.string().c_str());
 
   Model *m =
-      Model::MakeModel(physics_world_, &cfr_, abs_path.string(), ns, name);
+      Model::MakeModel(world_id_, &cfr_, abs_path.string(), ns, name);
   m->TransformAll(pose);
 
   try {

@@ -50,14 +50,17 @@
 
 namespace flatland_server {
 
-Joint::Joint(b2World *physics_world, Model *model, const std::string &name,
-             const Color &color, const b2JointDef &joint_def)
+Joint::Joint(b2WorldId physics_world, Model *model, const std::string &name,
+             const Color &color, b2JointId joint_id)
     : model_(model), name_(name), physics_world_(physics_world), color_(color) {
-  physics_joint_ = physics_world->CreateJoint(&joint_def);
-  physics_joint_->SetUserData(this);
+  physics_joint_ = joint_id;
 }
 
-Joint::~Joint() { physics_world_->DestroyJoint(physics_joint_); }
+Joint::~Joint() {
+  if (b2Joint_IsValid(physics_joint_)) {
+    b2DestroyJoint(physics_joint_);
+  }
+}
 
 Model *Joint::GetModel() { return model_; }
 
@@ -67,11 +70,11 @@ const Color &Joint::GetColor() const { return color_; }
 
 void Joint::SetColor(const Color &color) { color_ = color; }
 
-b2Joint *Joint::GetPhysicsJoint() { return physics_joint_; }
+b2JointId Joint::GetPhysicsJoint() { return physics_joint_; }
 
-b2World *Joint::GetphysicsWorld() { return physics_world_; }
+b2WorldId Joint::GetphysicsWorld() { return physics_world_; }
 
-Joint *Joint::MakeJoint(b2World *physics_world, Model *model,
+Joint *Joint::MakeJoint(b2WorldId physics_world, Model *model,
                         YamlReader &joint_reader) {
   Joint *j;
 
@@ -106,8 +109,8 @@ Joint *Joint::MakeJoint(b2World *physics_world, Model *model,
 
   b2Vec2 anchor_A = anchors[0].Box2D();
   b2Vec2 anchor_B = anchors[1].Box2D();
-  b2Body *body_A = bodies[0]->physics_body_;
-  b2Body *body_B = bodies[1]->physics_body_;
+  b2BodyId body_A = bodies[0]->physics_body_;
+  b2BodyId body_B = bodies[1]->physics_body_;
 
   if (type == "revolute") {
     j = MakeRevoluteJoint(physics_world, model, joint_reader, name, color,
@@ -131,10 +134,10 @@ Joint *Joint::MakeJoint(b2World *physics_world, Model *model,
   return j;
 }
 
-Joint *Joint::MakeRevoluteJoint(b2World *physics_world, Model *model,
+Joint *Joint::MakeRevoluteJoint(b2WorldId physics_world, Model *model,
                                 YamlReader &joint_reader,
                                 const std::string &name, const Color &color,
-                                b2Body *body_A, b2Vec2 anchor_A, b2Body *body_B,
+                                b2BodyId body_A, b2Vec2 anchor_A, b2BodyId body_B,
                                 b2Vec2 anchor_B, bool collide_connected) {
   double upper_limit, lower_limit;
   bool has_limits = false;
@@ -146,60 +149,61 @@ Joint *Joint::MakeRevoluteJoint(b2World *physics_world, Model *model,
     has_limits = true;
   }
 
-  b2RevoluteJointDef joint_def;
-  joint_def.bodyA = body_A;
-  joint_def.bodyB = body_B;
+  b2RevoluteJointDef joint_def = b2DefaultRevoluteJointDef();
+  joint_def.bodyIdA = body_A;
+  joint_def.bodyIdB = body_B;
   joint_def.localAnchorA = anchor_A;
   joint_def.localAnchorB = anchor_B;
   joint_def.collideConnected = collide_connected;
 
   if (has_limits) {
-    joint_def.lowerAngle = lower_limit;
-    joint_def.upperAngle = upper_limit;
+    joint_def.lowerAngle = static_cast<float>(lower_limit);
+    joint_def.upperAngle = static_cast<float>(upper_limit);
     joint_def.enableLimit = true;
   } else {
     joint_def.enableLimit = false;
   }
 
-  return new Joint(physics_world, model, name, color, joint_def);
+  b2JointId jid = b2CreateRevoluteJoint(physics_world, &joint_def);
+  return new Joint(physics_world, model, name, color, jid);
 }
 
-Joint *Joint::MakeWeldJoint(b2World *physics_world, Model *model,
+Joint *Joint::MakeWeldJoint(b2WorldId physics_world, Model *model,
                             YamlReader &joint_reader, const std::string &name,
-                            const Color &color, b2Body *body_A, b2Vec2 anchor_A,
-                            b2Body *body_B, b2Vec2 anchor_B,
+                            const Color &color, b2BodyId body_A, b2Vec2 anchor_A,
+                            b2BodyId body_B, b2Vec2 anchor_B,
                             bool collide_connected) {
   double angle = joint_reader.Get<double>("angle", 0.0);
   double frequency = joint_reader.Get<double>("frequency", 0.0);
   double damping = joint_reader.Get<double>("damping", 0.0);
 
-  b2WeldJointDef joint_def;
-  joint_def.bodyA = body_A;
-  joint_def.bodyB = body_B;
+  b2WeldJointDef joint_def = b2DefaultWeldJointDef();
+  joint_def.bodyIdA = body_A;
+  joint_def.bodyIdB = body_B;
   joint_def.localAnchorA = anchor_A;
   joint_def.localAnchorB = anchor_B;
-  joint_def.frequencyHz = frequency;
-  joint_def.dampingRatio = damping;
-  joint_def.referenceAngle = angle;
+  joint_def.angularHertz = static_cast<float>(frequency);
+  joint_def.angularDampingRatio = static_cast<float>(damping);
+  joint_def.referenceAngle = static_cast<float>(angle);
   joint_def.collideConnected = collide_connected;
 
-  return new Joint(physics_world, model, name, color, joint_def);
+  b2JointId jid = b2CreateWeldJoint(physics_world, &joint_def);
+  return new Joint(physics_world, model, name, color, jid);
 }
 
 void Joint::DebugOutput() const {
-  b2Joint *j = physics_joint_;
-  Body *body_A = static_cast<Body *>(j->GetBodyA()->GetUserData());
-  Body *body_B = static_cast<Body *>(j->GetBodyB()->GetUserData());
+  b2BodyId body_A_id = b2Joint_GetBodyA(physics_joint_);
+  b2BodyId body_B_id = b2Joint_GetBodyB(physics_joint_);
+  Body *body_A = static_cast<Body *>(b2Body_GetUserData(body_A_id));
+  Body *body_B = static_cast<Body *>(b2Body_GetUserData(body_B_id));
 
   ROS_DEBUG_NAMED("Joint",
                   "Joint %p: model(%p, %s) name(%s) color(%f,%f,%f,%f) "
-                  "physics_joint(%p) body_A(%p, %s) anchor_A_world(%f, %f) "
-                  "body_B(%p, %s) anchor_B_world(%f, %f)",
+                  "body_A(%p, %s) body_B(%p, %s)",
                   this, model_, model_->name_.c_str(), name_.c_str(), color_.r,
-                  color_.g, color_.b, color_.a, physics_joint_, body_A,
-                  body_A->name_.c_str(), j->GetAnchorA().x, j->GetAnchorA().y,
-                  body_B, body_B->name_.c_str(), j->GetAnchorB().x,
-                  j->GetAnchorB().y);
+                  color_.g, color_.b, color_.a,
+                  body_A, body_A ? body_A->name_.c_str() : "?",
+                  body_B, body_B ? body_B->name_.c_str() : "?");
 }
 
 };  // namespace flatland_server

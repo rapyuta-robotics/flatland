@@ -150,72 +150,67 @@ void Laser::ComputeLaserRanges() {
   // get the transformation matrix from the world to the body, and get the
   // world to laser frame transformation matrix by multiplying the world to body
   // and body to laser
-  const b2Transform &t = body_->GetPhysicsBody()->GetTransform();
+  b2Transform t = b2Body_GetTransform(body_->GetPhysicsBody());
   m_world_to_body_ << t.q.c, -t.q.s, t.p.x, t.q.s, t.q.c, t.p.y, 0, 0, 1;
   m_world_to_laser_ = m_world_to_body_ * m_body_to_laser_;
 
-  // Get the laser points in the world frame by multiplying the laser points in
-  // the laser frame to the transformation matrix from world to laser frame
+  // Get the laser points in the world frame
   m_world_laser_points_ = m_world_to_laser_ * m_laser_points_;
   // Get the (0, 0) point in the laser frame
   v_world_laser_origin_ = m_world_to_laser_ * v_zero_point_;
 
-  // Conver to Box2D data types
-  b2Vec2 laser_origin_point(v_world_laser_origin_(0), v_world_laser_origin_(1));
+  // Convert to Box2D data types
+  b2Vec2 laser_origin_point = {v_world_laser_origin_(0),
+                               v_world_laser_origin_(1)};
 
-  // Results vector
-  std::vector<std::future<std::pair<double, double>>> results(
-      laser_scan_.ranges.size());
+  b2WorldId world_id = GetModel()->GetPhysicsWorld();
 
-  // loop through the laser points and call the Box2D world raycast by
-  // enqueueing the callback
+  // Sequential ray cast loop (thread pool replaced; physics is now MT via enkiTS)
   for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
-    results[i] =
-        pool_.enqueue([i, this, laser_origin_point] {  // Lambda function
-          b2Vec2 laser_point;
-          laser_point.x = m_world_laser_points_(0, i);
-          laser_point.y = m_world_laser_points_(1, i);
-          LaserCallback cb(this);
+    b2Vec2 laser_point = {m_world_laser_points_(0, i),
+                          m_world_laser_points_(1, i)};
 
-          GetModel()->GetPhysicsWorld()->RayCast(&cb, laser_origin_point,
-                                                 laser_point);
+    LaserRayContext ctx;
+    ctx.layers_bits = layers_bits_;
+    ctx.reflectance_layers_bits = reflectance_layers_bits_;
 
-          if (!cb.did_hit_) {
-            return std::make_pair<double, double>(NAN, 0);
-          } else {
-            return std::make_pair<double, double>(cb.fraction_ * this->range_,
-                                                  cb.intensity_);
-          }
-        });
-  }
+    b2QueryFilter filter = b2DefaultQueryFilter();
+    filter.maskBits = layers_bits_;
+    b2World_CastRay(world_id, laser_origin_point, laser_point, filter,
+                    LaserRayCastFcn, &ctx);
 
-  // Unqueue all of the future'd results
-  for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
-    auto result = results[i].get();  // Pull the result from the future
-    laser_scan_.ranges[i] = result.first + this->noise_gen_(this->rng_);
-    if (reflectance_layers_bits_) laser_scan_.intensities[i] = result.second;
+    if (!ctx.did_hit) {
+      laser_scan_.ranges[i] = NAN;
+    } else {
+      laser_scan_.ranges[i] =
+          static_cast<float>(ctx.fraction * range_ + noise_gen_(rng_));
+    }
+    if (reflectance_layers_bits_) laser_scan_.intensities[i] = ctx.intensity;
   }
 }
 
-float LaserCallback::ReportFixture(b2Fixture *fixture, const b2Vec2 &point,
-                                   const b2Vec2 &normal, float fraction) {
-  uint16_t category_bits = fixture->GetFilterData().categoryBits;
+float LaserRayCastFcn(b2ShapeId shapeId, b2Vec2 /*point*/, b2Vec2 /*normal*/,
+                      float fraction, void *context) {
+  auto *ctx = static_cast<LaserRayContext *>(context);
+  b2Filter filter = b2Shape_GetFilter(shapeId);
+  uint16_t category_bits = static_cast<uint16_t>(filter.categoryBits);
+
   // only register hit in the specified layers
-  if (!(category_bits & parent_->layers_bits_)) {
-    return -1.0f;  // return -1 to ignore this hit
+  if (!(category_bits & ctx->layers_bits)) {
+    return -1.0f;  // ignore this hit
   }
 
-  // Don't return on hitting sensors... they're not real
-  if (fixture->IsSensor()) return -1.0f;
+  // Don't hit sensors
+  if (b2Shape_IsSensor(shapeId)) return -1.0f;
 
-  if (category_bits & parent_->reflectance_layers_bits_) {
-    intensity_ = 255.0;
+  if (category_bits & ctx->reflectance_layers_bits) {
+    ctx->intensity = 255.0f;
   }
 
-  did_hit_ = true;
-  fraction_ = fraction;
+  ctx->did_hit = true;
+  ctx->fraction = fraction;
 
-  return fraction;
+  return fraction;  // return fraction to find closest hit
 }
 
 void Laser::ParseParameters(const YAML::Node &config) {

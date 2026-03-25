@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_FLATLAND_PLUGIN_H
 #define FLATLAND_SERVER_FLATLAND_PLUGIN_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/timekeeper.h>
 #include <ros/ros.h>
 #include <yaml-cpp/yaml.h>
@@ -98,29 +98,29 @@ class FlatlandPlugin {
 
   /**
    * @brief A method that is called for all Box2D begin contacts
-   * @param[in] contact Box2D contact
+   * @param[in] shapeIdA First shape in contact
+   * @param[in] shapeIdB Second shape in contact
    */
-  virtual void BeginContact(b2Contact *contact) {}
+  virtual void BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {}
 
   /**
    * @brief A method that is called for all Box2D end contacts
-   * @param[in] contact Box2D contact
+   * @param[in] shapeIdA First shape in contact
+   * @param[in] shapeIdB Second shape in contact
    */
-  virtual void EndContact(b2Contact *contact) {}
+  virtual void EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {}
 
   /**
-   * @brief A method that is called for Box2D presolve
-   * @param[in] contact Box2D contact
-   * @param[in] oldManifold Manifold from the previous iteration
+   * @brief A method that is called for Box2D contact hit events (replaces PostSolve)
+   * @param[in] shapeIdA First shape in contact
+   * @param[in] shapeIdB Second shape in contact
+   * @param[in] point World-space contact point
+   * @param[in] normal Contact normal pointing from A to B
+   * @param[in] approachSpeed Approach speed of the collision
    */
-  virtual void PreSolve(b2Contact *contact, const b2Manifold *oldManifold) {}
-
-  /**
-   * @brief A method that is called for Box2D postsolve
-   * @param[in] contact Box2D contact
-   * @param[in] impulse Impulse from the collision resolution
-   */
-  virtual void PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) {}
+  virtual void OnContactHit(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                             b2Vec2 point, b2Vec2 normal,
+                             float approachSpeed) {}
 
   /**
    * @brief Flatland plugin destructor

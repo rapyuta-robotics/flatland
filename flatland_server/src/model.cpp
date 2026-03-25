@@ -48,15 +48,31 @@
 #include <flatland_server/exceptions.h>
 #include <flatland_server/geometry.h>
 #include <flatland_server/model.h>
+#include <flatland_server/world.h>
 
 namespace flatland_server {
 
-Model::Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+Model::Model(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::string &ns, const std::string &name)
     : Entity(physics_world, name),
+      world_(nullptr),
       namespace_(ns),
       cfr_(cfr),
       viz_name_("model/" + name_) {}
+
+Model::Model(World *world, b2WorldId physics_world, CollisionFilterRegistry *cfr,
+             const std::string &ns, const std::string &name)
+    : Entity(physics_world, name),
+      world_(world),
+      namespace_(ns),
+      cfr_(cfr),
+      viz_name_("model/" + name_) {}
+
+World &Model::GetWorld() const { return *world_; }
+
+MessageServer &Model::GetMessageServer() const {
+  return GetWorld().message_server;
+}
 
 Model::~Model() {
   for (unsigned int i = 0; i < joints_.size(); i++) {
@@ -74,7 +90,33 @@ Model::~Model() {
   DebugVisualization::Get().Reset(viz_name_);
 }
 
-Model *Model::MakeModel(b2World *physics_world, CollisionFilterRegistry *cfr,
+Model *Model::MakeModel(World *world, b2WorldId physics_world,
+                        CollisionFilterRegistry *cfr,
+                        const std::string &model_yaml_path,
+                        const std::string &ns, const std::string &name) {
+  YamlReader reader(model_yaml_path);
+  reader.SetErrorInfo("model " + Q(name));
+
+  Model *m = new Model(world, physics_world, cfr, ns, name);
+
+  m->plugins_reader_ = reader.SubnodeOpt("plugins", YamlReader::LIST);
+
+  try {
+    YamlReader bodies_reader = reader.Subnode("bodies", YamlReader::LIST);
+    YamlReader joints_reader = reader.SubnodeOpt("joints", YamlReader::LIST);
+    reader.EnsureAccessedAllKeys();
+
+    m->LoadBodies(bodies_reader);
+    m->LoadJoints(joints_reader);
+  } catch (const YAMLException &e) {
+    delete m;
+    throw e;
+  }
+
+  return m;
+}
+
+Model *Model::MakeModel(b2WorldId physics_world, CollisionFilterRegistry *cfr,
                         const std::string &model_yaml_path,
                         const std::string &ns, const std::string &name) {
   YamlReader reader(model_yaml_path);
@@ -211,17 +253,18 @@ const CollisionFilterRegistry *Model::GetCfr() const { return cfr_; }
 
 void Model::SetPose(const Pose &pose) {
   // Grab first (root?) body transform
+  b2BodyId root = bodies_[0]->physics_body_;
   RotateTranslate root_body_transform =
-      Geometry::CreateTransform(bodies_[0]->physics_body_->GetPosition().x,
-                                bodies_[0]->physics_body_->GetPosition().y,
-                                bodies_[0]->physics_body_->GetAngle());
+      Geometry::CreateTransform(b2Body_GetPosition(root).x,
+                                b2Body_GetPosition(root).y,
+                                b2Rot_GetAngle(b2Body_GetRotation(root)));
 
   // Inverse transform all bodies by this to reset their poses
   for (unsigned int i = 0; i < bodies_.size(); i++) {
-    bodies_[i]->physics_body_->SetTransform(
-        Geometry::InverseTransform(bodies_[i]->physics_body_->GetPosition(),
-                                   root_body_transform),
-        0.0);
+    b2BodyId bid = bodies_[i]->physics_body_;
+    b2Vec2 new_pos = Geometry::InverseTransform(b2Body_GetPosition(bid),
+                                                root_body_transform);
+    b2Body_SetTransform(bid, new_pos, b2MakeRot(0.0f));
   }
 
   // Apply new desired pose in world coordinates
@@ -244,9 +287,11 @@ void Model::TransformAll(const Pose &pose_delta) {
       Geometry::CreateTransform(pose_delta.x, pose_delta.y, pose_delta.theta);
 
   for (unsigned int i = 0; i < bodies_.size(); i++) {
-    bodies_[i]->physics_body_->SetTransform(
-        Geometry::Transform(bodies_[i]->physics_body_->GetPosition(), tf),
-        bodies_[i]->physics_body_->GetAngle() + pose_delta.theta);
+    b2BodyId bid = bodies_[i]->physics_body_;
+    b2Vec2 new_pos = Geometry::Transform(b2Body_GetPosition(bid), tf);
+    float new_angle = b2Rot_GetAngle(b2Body_GetRotation(bid)) +
+                      static_cast<float>(pose_delta.theta);
+    b2Body_SetTransform(bid, new_pos, b2MakeRot(new_angle));
   }
 }
 
@@ -268,9 +313,10 @@ void Model::DebugVisualize() const {
 
 void Model::DebugOutput() const {
   ROS_DEBUG_NAMED("Model",
-                  "Model %p: physics_world(%p) name(%s) namespace(%s) "
+                  "Model %p: physics_world(id=%d,%d) name(%s) namespace(%s) "
                   "num_bodies(%lu) num_joints(%lu)",
-                  this, physics_world_, name_.c_str(), namespace_.c_str(),
+                  this, physics_world_.index1, physics_world_.generation,
+                  name_.c_str(), namespace_.c_str(),
                   bodies_.size(), joints_.size());
 
   for (const auto &body : bodies_) {
@@ -284,22 +330,21 @@ void Model::DebugOutput() const {
 
 void Model::DumpBox2D() const {
   for (const auto &body : bodies_) {
-    b2Log("BODY %p name=%s box2d_body=%p model=%p model_name=%s\n", body,
-          body->name_.c_str(), body->physics_body_, this, name_.c_str());
-    body->physics_body_->Dump();
+    ROS_DEBUG_NAMED("Model", "BODY %p name=%s model=%p model_name=%s", body,
+          body->name_.c_str(), this, name_.c_str());
   }
 
   for (const auto &joint : joints_) {
-    Body *body_A =
-        static_cast<Body *>(joint->physics_joint_->GetBodyA()->GetUserData());
-    Body *body_B =
-        static_cast<Body *>(joint->physics_joint_->GetBodyB()->GetUserData());
-    b2Log(
-        "JOINT %p name=%s  box2d_joint=%p model=%p model_name=%s "
-        "body_A(%p %s) body_B(%p %s)\n",
-        joint, joint->name_.c_str(), joint->physics_joint_, this, name_.c_str(),
-        body_A, body_A->name_.c_str(), body_B, body_B->name_.c_str());
-    joint->physics_joint_->Dump();
+    b2BodyId bodyA_id = b2Joint_GetBodyA(joint->physics_joint_);
+    b2BodyId bodyB_id = b2Joint_GetBodyB(joint->physics_joint_);
+    Body *body_A = static_cast<Body *>(b2Body_GetUserData(bodyA_id));
+    Body *body_B = static_cast<Body *>(b2Body_GetUserData(bodyB_id));
+    ROS_DEBUG_NAMED("Model",
+        "JOINT %p name=%s model=%p model_name=%s "
+        "body_A(%p %s) body_B(%p %s)",
+        joint, joint->name_.c_str(), this, name_.c_str(),
+        body_A, body_A ? body_A->name_.c_str() : "(null)",
+        body_B, body_B ? body_B->name_.c_str() : "(null)");
   }
 }
 };  // namespace flatland_server

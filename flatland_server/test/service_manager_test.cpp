@@ -129,10 +129,10 @@ TEST_F(ServiceManagerTest, spawn_valid_model) {
   EXPECT_STREQ("service_manager_test_robot", w->models_[4]->name_.c_str());
   EXPECT_STREQ("robot123", w->models_[4]->namespace_.c_str());
   EXPECT_FLOAT_EQ(101.1,
-                  w->models_[4]->bodies_[0]->physics_body_->GetPosition().x);
+                  b2Body_GetPosition(w->models_[4]->bodies_[0]->physics_body_).x);
   EXPECT_FLOAT_EQ(102.1,
-                  w->models_[4]->bodies_[0]->physics_body_->GetPosition().y);
-  EXPECT_FLOAT_EQ(0.23, w->models_[4]->bodies_[0]->physics_body_->GetAngle());
+                  b2Body_GetPosition(w->models_[4]->bodies_[0]->physics_body_).y);
+  EXPECT_FLOAT_EQ(0.23, b2Rot_GetAngle(b2Body_GetRotation(w->models_[4]->bodies_[0]->physics_body_)));
   EXPECT_EQ(1, w->models_[4]->bodies_.size());
 }
 
@@ -195,11 +195,9 @@ TEST_F(ServiceManagerTest, move_model) {
   ASSERT_TRUE(srv.response.success);
 
   World* w = sim_man->world_;
-  EXPECT_NEAR(5.5, w->models_[0]->bodies_[0]->physics_body_->GetPosition().x,
-              1e-2);
-  EXPECT_NEAR(9.9, w->models_[0]->bodies_[0]->physics_body_->GetPosition().y,
-              1e-2);
-  EXPECT_NEAR(0.77, w->models_[0]->bodies_[0]->physics_body_->GetAngle(), 1e-2);
+  EXPECT_NEAR(5.5, b2Body_GetPosition(w->models_[0]->bodies_[0]->physics_body_).x, 1e-2);
+  EXPECT_NEAR(9.9, b2Body_GetPosition(w->models_[0]->bodies_[0]->physics_body_).y, 1e-2);
+  EXPECT_NEAR(0.77, b2Rot_GetAngle(b2Body_GetRotation(w->models_[0]->bodies_[0]->physics_body_)), 1e-2);
 }
 
 /**

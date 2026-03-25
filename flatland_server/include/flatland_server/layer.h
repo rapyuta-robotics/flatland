@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_LAYER_H
 #define FLATLAND_SERVER_LAYER_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/body.h>
 #include <flatland_server/collision_filter_registry.h>
 #include <flatland_server/entity.h>
@@ -85,7 +85,7 @@ class Layer : public Entity {
    * @param[in] resolution Resolution of the map image in meters per pixel
    * @param[in] properties A YAML node containing properties for plugins to use
    */
-  Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::vector<std::string> &names, const Color &color,
         const Pose &origin, const cv::Mat &bitmap, double occupied_thresh,
         double resolution, const YAML::Node &properties);
@@ -105,7 +105,7 @@ class Layer : public Entity {
    * the same way as resolution
    * @param[in] properties A YAML node containing properties for plugins to use
    */
-  Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::vector<std::string> &names, const Color &color,
         const Pose &origin, const std::vector<LineSegment> &line_segments,
         double scale, const YAML::Node &properties);
@@ -119,7 +119,7 @@ class Layer : public Entity {
   * for the name of the body
   * @param[in] properties A YAML node containing properties for plugins to use
   */
-  Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::vector<std::string> &names, const Color &color,
         const YAML::Node &properties);
 
@@ -188,7 +188,7 @@ class Layer : public Entity {
    * @param[in] properties A YAML node containing properties for plugins to use
    * @return A new layer
    */
-  static Layer *MakeLayer(b2World *physics_world, CollisionFilterRegistry *cfr,
+  static Layer *MakeLayer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
                           const std::string &map_path,
                           const std::vector<std::string> &names,
                           const Color &color, const YAML::Node &properties);
