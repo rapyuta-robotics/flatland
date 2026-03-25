@@ -59,6 +59,8 @@ set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 # Build dependencies with PIC for shared library linking
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(box2d)
+# Box2D v3.1.0 distance.c triggers -Werror=maybe-uninitialized on GCC (false positive)
+target_compile_options(box2d PRIVATE -Wno-maybe-uninitialized)
 
 FetchContent_Declare(
   enkiTS
