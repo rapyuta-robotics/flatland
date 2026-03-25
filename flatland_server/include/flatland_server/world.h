@@ -50,6 +50,7 @@
 #include <box2d/box2d.h>
 #include "TaskScheduler.h"
 #include <flatland_server/collision_filter_registry.h>
+#include <flatland_server/message_server.h>
 #include <flatland_server/interactive_marker_manager.h>
 #include <flatland_server/layer.h>
 #include <flatland_server/model.h>
@@ -84,6 +85,7 @@ class World {
       int_marker_manager_;  ///< for dynamically moving models from Rviz
   int physics_velocity_iterations_;  ///< Box2D solver velocity iterations
   enki::TaskScheduler task_scheduler_;  ///< enkiTS multi-core task scheduler
+  MessageServer message_server;          ///< internal message passing system
 
   /**
    * @brief Constructor for the world class. All data required for

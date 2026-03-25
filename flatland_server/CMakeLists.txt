@@ -128,6 +128,7 @@ add_library(flatland_lib
   src/dummy_model_plugin.cpp 
   src/dummy_world_plugin.cpp
   src/yaml_preprocessor.cpp
+  src/message_server.cpp
 )
 
 add_dependencies(flatland_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -195,6 +196,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
 install(FILES
   ${enkits_SOURCE_DIR}/src/TaskScheduler.h
   ${enkits_SOURCE_DIR}/src/LockLessMultiReadPipe.h
+  include/${PROJECT_NAME}/message_server.h
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
 
