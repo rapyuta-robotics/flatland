@@ -64,6 +64,8 @@ class WorldPlugin : public FlatlandPlugin {
   YamlReader world_config_;
 
  public:
+  /// @brief Returns the world this plugin is attached to
+  World *GetWorld() const { return world_; }
   /*
   * @brief WorldPlugin default constructor
   */

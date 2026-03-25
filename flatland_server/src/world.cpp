@@ -193,6 +193,7 @@ World *World::MakeWorld(const std::string &yaml_path) {
   World *w = new World();
 
   w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
+  w->yaml_path_ = yaml_path;
   w->physics_velocity_iterations_ = v;
 
   try {
@@ -221,7 +222,29 @@ World *World::MakeWorld(const std::string &yaml_path) {
   return w;
 }
 
-void World::LoadLayers(YamlReader &layers_reader) {
+void World::LoadWorldEntities() {
+  try {
+    YamlReader map_info_reader = YamlReader(yaml_path_);
+    YamlReader layers_reader =
+        map_info_reader.Subnode("layers", YamlReader::LIST);
+    YamlReader models_reader =
+        map_info_reader.SubnodeOpt("models", YamlReader::LIST);
+    LoadLayers(layers_reader);
+    LoadModels(models_reader);
+  } catch (const YAMLException &e) {
+    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World",
+                                          yaml_path_ << " not loaded yet");
+    throw e;
+  }
+}
+
+void World::SlowSimTime(const std::string & /*agent*/) {
+  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+}
+
+void World::FastSimTime(const std::string & /*agent*/) {
+  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+}(YamlReader &layers_reader) {
   // loop through each layer and parse the data
   for (int i = 0; i < layers_reader.NodeSize(); i++) {
     YamlReader reader = layers_reader.Subnode(i, YamlReader::MAP);

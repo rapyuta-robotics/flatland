@@ -71,6 +71,7 @@ namespace flatland_server {
 class World {
  public:
   boost::filesystem::path world_yaml_dir_;  ///<directory containing world file
+  std::string yaml_path_;                   ///< path to the world YAML file
   b2WorldId world_id_;                      ///< Box2D v3 physics world ID
   b2Vec2 gravity_;  ///< Box2D world gravity, always (0, 0)
   std::map<std::vector<std::string>, Layer *>
@@ -133,6 +134,15 @@ class World {
    */
   void LoadModel(const std::string &model_yaml_path, const std::string &ns,
                  const std::string &name, const Pose &pose);
+
+  /// @brief Reload layers and models from the world YAML (used by map_info plugin)
+  void LoadWorldEntities();
+
+  /// @brief Mark an agent as needing slower simulation time
+  void SlowSimTime(const std::string &agent);
+
+  /// @brief Remove an agent from the slow-simulation set
+  void FastSimTime(const std::string &agent);
 
   /**
    * @brief remove model with a given name
