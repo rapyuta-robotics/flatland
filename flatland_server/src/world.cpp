@@ -244,7 +244,9 @@ void World::SlowSimTime(const std::string & /*agent*/) {
 
 void World::FastSimTime(const std::string & /*agent*/) {
   // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
-}(YamlReader &layers_reader) {
+}
+
+void World::LoadLayers(YamlReader &layers_reader) {
   // loop through each layer and parse the data
   for (int i = 0; i < layers_reader.NodeSize(); i++) {
     YamlReader reader = layers_reader.Subnode(i, YamlReader::MAP);
