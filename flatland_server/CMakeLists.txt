@@ -56,14 +56,18 @@ FetchContent_Declare(
 set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
 set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+# Build dependencies with PIC for shared library linking
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(box2d)
 
 FetchContent_Declare(
   enkiTS
   GIT_REPOSITORY https://github.com/dougbinks/enkiTS.git
-  GIT_TAG        v2.10
+  GIT_TAG        v1.11
 )
 FetchContent_MakeAvailable(enkiTS)
+# enkiTS uses include_directories() which doesn't propagate; add explicitly
+include_directories(${enkits_SOURCE_DIR}/src)
 
 ##############
 ## coverage ##
@@ -80,7 +84,7 @@ endif()
 ## catkin specific configuration ##
 ###################################
 catkin_package(
-  INCLUDE_DIRS include
+  INCLUDE_DIRS include ${box2d_SOURCE_DIR}/include ${enkits_SOURCE_DIR}/src
   LIBRARIES flatland_lib
   CATKIN_DEPENDS pluginlib roscpp std_msgs tf2 visualization_msgs tf2_geometry_msgs geometry_msgs
   DEPENDS OpenCV YAML_CPP

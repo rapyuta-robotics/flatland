@@ -69,8 +69,7 @@ void DebugVisualization::JointToMarkers(
     visualization_msgs::MarkerArray& markers, b2JointId joint, float r,
     float g, float b, float a) {
   b2JointType jtype = b2Joint_GetType(joint);
-  if (jtype == b2_distanceJoint || jtype == b2_pulleyJoint ||
-      jtype == b2_mouseJoint) {
+  if (jtype == b2_distanceJoint || jtype == b2_mouseJoint) {
     ROS_ERROR_NAMED("DebugVis",
                     "Unimplemented visualization joints. See b2World.cpp for "
                     "implementation");
@@ -92,14 +91,8 @@ void DebugVisualization::JointToMarkers(
   b2Vec2 posB = b2Body_GetPosition(bodyB);
 
   // Compute world anchor points from local anchors (weld joint only for now)
-  b2Vec2 localAnchorA{0, 0}, localAnchorB{0, 0};
-  if (b2Joint_GetType(joint) == b2_weldJoint) {
-    localAnchorA = b2WeldJoint_GetLocalAnchorA(joint);
-    localAnchorB = b2WeldJoint_GetLocalAnchorB(joint);
-  } else if (b2Joint_GetType(joint) == b2_revoluteJoint) {
-    localAnchorA = b2RevoluteJoint_GetLocalAnchorA(joint);
-    localAnchorB = b2RevoluteJoint_GetLocalAnchorB(joint);
-  }
+  b2Vec2 localAnchorA = b2Joint_GetLocalAnchorA(joint);
+  b2Vec2 localAnchorB = b2Joint_GetLocalAnchorB(joint);
   b2Vec2 worldAnchorA = b2TransformPoint(b2Body_GetTransform(bodyA), localAnchorA);
   b2Vec2 worldAnchorB = b2TransformPoint(b2Body_GetTransform(bodyB), localAnchorB);
 

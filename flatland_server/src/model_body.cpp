@@ -128,8 +128,8 @@ void ModelBody::ConfigFootprintDef(YamlReader &footprint_reader,
                                    b2ShapeDef &shape_def) {
   // configure physics properties
   shape_def.density = footprint_reader.Get<float>("density");
-  shape_def.friction = footprint_reader.Get<float>("friction", 0.0);
-  shape_def.restitution = footprint_reader.Get<float>("restitution", 0.0);
+  shape_def.material.friction = footprint_reader.Get<float>("friction", 0.0);
+  shape_def.material.restitution = footprint_reader.Get<float>("restitution", 0.0);
 
   // config collision properties
   shape_def.isSensor = footprint_reader.Get<bool>("sensor", false);

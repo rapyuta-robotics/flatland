@@ -56,7 +56,7 @@ void Gps::UpdateFix() {
   Eigen::Matrix3f m_world_to_body;
   m_world_to_body << t.q.c, -t.q.s, t.p.x, t.q.s, t.q.c, t.p.y, 0, 0, 1;
   Eigen::Matrix3f m_world_to_gps = m_world_to_body * m_body_to_gps_;
-  b2Vec2 gps_pos(m_world_to_gps(0, 2), m_world_to_gps(1, 2));
+  b2Vec2 gps_pos = {(float)m_world_to_gps(0, 2), (float)m_world_to_gps(1, 2)};
 
   /* Convert simulation position into ECEF coordinates */
   double s_lat = sin(ref_lat_rad_);

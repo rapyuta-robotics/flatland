@@ -214,11 +214,11 @@ void TricycleDrive::ComputeJoints() {
       b2Transform tfA = b2Body_GetTransform(jbodyA);
       b2Transform tfB = b2Body_GetTransform(jbodyB);
       if (b2Joint_GetType(jid) == b2_revoluteJoint) {
-        anchorA = b2TransformPoint(tfA, b2RevoluteJoint_GetLocalAnchorA(jid));
-        anchorB = b2TransformPoint(tfB, b2RevoluteJoint_GetLocalAnchorB(jid));
+        anchorA = b2TransformPoint(tfA, b2Joint_GetLocalAnchorA(jid));
+        anchorB = b2TransformPoint(tfB, b2Joint_GetLocalAnchorB(jid));
       } else {
-        anchorA = b2TransformPoint(tfA, b2WeldJoint_GetLocalAnchorA(jid));
-        anchorB = b2TransformPoint(tfB, b2WeldJoint_GetLocalAnchorB(jid));
+        anchorA = b2TransformPoint(tfA, b2Joint_GetLocalAnchorA(jid));
+        anchorB = b2TransformPoint(tfB, b2Joint_GetLocalAnchorB(jid));
       }
     }
 
@@ -438,7 +438,7 @@ void TricycleDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   // Now we would like the rear center to move at v_x, v_y, and w, since Box2D
   // applies velocities at center of mass, we must use rigid body kinematics
   // to transform the velocities
-  b2Vec2 linear_vel(v_x, v_y);
+  b2Vec2 linear_vel = {(float)v_x, (float)v_y};
 
   // V_cm = V_rc + W x r_cm/rc
   // velocity at center of mass equals to the velocity at the rear center plus,

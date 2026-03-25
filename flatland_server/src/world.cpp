@@ -60,44 +60,54 @@ namespace flatland_server {
 
 // --------------- enkiTS <-> Box2D v3 task adapter ---------------
 
-struct EnkiTaskContext {
-  b2TaskCallback *box2d_task;
-  int item_count;
-  uint32_t min_range;
-  uint32_t max_range;
-  void *box2d_context;
+class FlatlandTask : public enki::ITaskSet {
+public:
+  FlatlandTask() = default;
+
+  void ExecuteRange(enki::TaskSetPartition range,
+                    uint32_t threadIndex) override {
+    m_task(range.start, range.end, threadIndex, m_taskContext);
+  }
+
+  b2TaskCallback *m_task = nullptr;
+  void *m_taskContext = nullptr;
 };
 
-static void EnkiTaskFn(uint32_t start, uint32_t end, uint32_t /*thread_num*/,
-                        void *arg) {
-  auto *ctx = static_cast<EnkiTaskContext *>(arg);
-  ctx->box2d_task(start, end, 0, ctx->box2d_context);
-}
+static constexpr int kMaxTasks = 128;
+static FlatlandTask s_tasks[kMaxTasks];
+static int s_taskCount = 0;
 
 static void *EnkiEnqueueTask(b2TaskCallback *fcn, int32_t itemCount,
                               int32_t minRange, void *taskContext,
                               void *userContext) {
   auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
-  auto *ctx = new EnkiTaskContext{fcn, itemCount, static_cast<uint32_t>(minRange),
-                                  static_cast<uint32_t>(itemCount), taskContext};
-  auto *task = new enki::TaskSet(itemCount, EnkiTaskFn, ctx);
-  scheduler->AddTaskSetToPipe(task);
-  return task;
+  if (s_taskCount < kMaxTasks) {
+    FlatlandTask &task = s_tasks[s_taskCount];
+    task.m_SetSize = itemCount;
+    task.m_MinRange = minRange;
+    task.m_task = fcn;
+    task.m_taskContext = taskContext;
+    scheduler->AddTaskSetToPipe(&task);
+    ++s_taskCount;
+    return &task;
+  }
+  // Fallback: run inline if pool exhausted
+  fcn(0, itemCount, 0, taskContext);
+  return nullptr;
 }
 
 static void EnkiFinishTask(void *userTask, void *userContext) {
-  auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
-  auto *task = static_cast<enki::TaskSet *>(userTask);
-  scheduler->WaitforTask(task);
-  auto *ctx = static_cast<EnkiTaskContext *>(task->m_Function);
-  delete ctx;
-  delete task;
+  if (userTask != nullptr) {
+    auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
+    auto *task = static_cast<FlatlandTask *>(userTask);
+    scheduler->WaitforTask(task);
+  }
 }
 
 // ----------------------------------------------------------------
 
 World::World()
-    : gravity_(0, 0),
+    : gravity_({0.0f, 0.0f}),
       service_paused_(false),
       int_marker_manager_(&models_, &plugin_manager_) {
   task_scheduler_.Initialize();
@@ -147,6 +157,7 @@ World::~World() {
 void World::Update(Timekeeper &timekeeper) {
   if (!IsPaused()) {
     plugin_manager_.BeforePhysicsStep(timekeeper);
+    s_taskCount = 0;  // Reset task pool for this step
     b2World_Step(world_id_, timekeeper.GetStepSize(),
                  physics_velocity_iterations_);
 

@@ -288,7 +288,7 @@ void Model::DebugOutput() const {
 
 void Model::DumpBox2D() const {
   for (const auto &body : bodies_) {
-    b2Log("BODY %p name=%s model=%p model_name=%s\n", body,
+    ROS_DEBUG_NAMED("Model", "BODY %p name=%s model=%p model_name=%s", body,
           body->name_.c_str(), this, name_.c_str());
   }
 
@@ -297,9 +297,9 @@ void Model::DumpBox2D() const {
     b2BodyId bodyB_id = b2Joint_GetBodyB(joint->physics_joint_);
     Body *body_A = static_cast<Body *>(b2Body_GetUserData(bodyA_id));
     Body *body_B = static_cast<Body *>(b2Body_GetUserData(bodyB_id));
-    b2Log(
+    ROS_DEBUG_NAMED("Model",
         "JOINT %p name=%s model=%p model_name=%s "
-        "body_A(%p %s) body_B(%p %s)\n",
+        "body_A(%p %s) body_B(%p %s)",
         joint, joint->name_.c_str(), this, name_.c_str(),
         body_A, body_A ? body_A->name_.c_str() : "(null)",
         body_B, body_B ? body_B->name_.c_str() : "(null)");

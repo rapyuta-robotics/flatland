@@ -124,7 +124,7 @@ void Tween::OnInitialize(const YAML::Node& config) {
 
   tween_ = tweeny::from(0.0, 0.0, 0.0)
                .to(delta_.x, delta_.y, delta_.theta)
-               .during((uint32)(duration_ * 1000.0));
+               .during((uint32_t)(duration_ * 1000.0));
 
   Tween::EasingType_ easing_type;
   std::string easing = reader.Get<std::string>("easing", "linear");
@@ -249,7 +249,7 @@ void Tween::TriggerCallback(const std_msgs::Bool& msg) {
 
 void Tween::BeforePhysicsStep(const Timekeeper& timekeeper) {
   std::array<double, 3> v =
-      tween_.step((uint32)(timekeeper.GetStepSize() * 1000.0));
+      tween_.step((uint32_t)(timekeeper.GetStepSize() * 1000.0));
   ROS_DEBUG_THROTTLE_NAMED(1.0, "Tween", "value %f,%f,%f step %f progress %f",
                            v[0], v[1], v[2], timekeeper.GetStepSize(),
                            tween_.progress());
