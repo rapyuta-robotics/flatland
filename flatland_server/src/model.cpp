@@ -48,15 +48,31 @@
 #include <flatland_server/exceptions.h>
 #include <flatland_server/geometry.h>
 #include <flatland_server/model.h>
+#include <flatland_server/world.h>
 
 namespace flatland_server {
 
 Model::Model(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::string &ns, const std::string &name)
     : Entity(physics_world, name),
+      world_(nullptr),
       namespace_(ns),
       cfr_(cfr),
       viz_name_("model/" + name_) {}
+
+Model::Model(World *world, b2WorldId physics_world, CollisionFilterRegistry *cfr,
+             const std::string &ns, const std::string &name)
+    : Entity(physics_world, name),
+      world_(world),
+      namespace_(ns),
+      cfr_(cfr),
+      viz_name_("model/" + name_) {}
+
+World &Model::GetWorld() const { return *world_; }
+
+MessageServer &Model::GetMessageServer() const {
+  return GetWorld().message_server;
+}
 
 Model::~Model() {
   for (unsigned int i = 0; i < joints_.size(); i++) {
@@ -72,6 +88,32 @@ Model::~Model() {
 
   // clear visualization
   DebugVisualization::Get().Reset(viz_name_);
+}
+
+Model *Model::MakeModel(World *world, b2WorldId physics_world,
+                        CollisionFilterRegistry *cfr,
+                        const std::string &model_yaml_path,
+                        const std::string &ns, const std::string &name) {
+  YamlReader reader(model_yaml_path);
+  reader.SetErrorInfo("model " + Q(name));
+
+  Model *m = new Model(world, physics_world, cfr, ns, name);
+
+  m->plugins_reader_ = reader.SubnodeOpt("plugins", YamlReader::LIST);
+
+  try {
+    YamlReader bodies_reader = reader.Subnode("bodies", YamlReader::LIST);
+    YamlReader joints_reader = reader.SubnodeOpt("joints", YamlReader::LIST);
+    reader.EnsureAccessedAllKeys();
+
+    m->LoadBodies(bodies_reader);
+    m->LoadJoints(joints_reader);
+  } catch (const YAMLException &e) {
+    delete m;
+    throw e;
+  }
+
+  return m;
 }
 
 Model *Model::MakeModel(b2WorldId physics_world, CollisionFilterRegistry *cfr,
