@@ -144,6 +144,10 @@ class World {
   /// @brief Remove an agent from the slow-simulation set
   void FastSimTime(const std::string &agent);
 
+  /// @brief Initialize dynamic fast-sim parameters (stub — not yet ported to Box2D v3)
+  void InitializeDynamicFastSim(double max_lower_speed, double min_lower_speed,
+                                 int num_robots_threshold);
+
   /**
    * @brief remove model with a given name
    * @param[in] name The name of the model to remove

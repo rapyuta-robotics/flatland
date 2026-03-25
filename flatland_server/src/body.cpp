@@ -53,7 +53,8 @@ Body::Body(b2WorldId physics_world, Entity *entity, const std::string &name,
            const Color &color, const Pose &pose, b2BodyType body_type,
            const YAML::Node &properties, double linear_damping,
            double angular_damping)
-    : entity_(entity), name_(name), color_(color), properties_(properties) {
+    : entity_(entity), name_(name), color_(color), properties_(properties),
+      parent_transform_(pose) {
   b2BodyDef body_def = b2DefaultBodyDef();
   body_def.type = body_type;
   body_def.position = {static_cast<float>(pose.x), static_cast<float>(pose.y)};

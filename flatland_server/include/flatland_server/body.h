@@ -60,11 +60,12 @@ namespace flatland_server {
  */
 class Body {
  public:
-  Entity *entity_;          ///< The entity the body belongs to
-  std::string name_;        ///< name of the body, unique within a model
-  b2BodyId physics_body_;   ///< Box2D v3 physics body ID
-  Color color_;             ///< color, for visualization
-  YAML::Node properties_;   ///< Properties document for plugins to use
+  Entity *entity_;              ///< The entity the body belongs to
+  std::string name_;            ///< name of the body, unique within a model
+  b2BodyId physics_body_;       ///< Box2D v3 physics body ID
+  Color color_;                 ///< color, for visualization
+  YAML::Node properties_;       ///< Properties document for plugins to use
+  Pose parent_transform_;       ///< Initial pose (offset from parent entity)
 
   /**
    * @brief constructor for body, takes in all the required parameters
@@ -104,6 +105,13 @@ class Body {
    * @return Pointer to Box2D physics body
    */
   b2BodyId GetPhysicsBody();
+
+  /**
+   * @brief Get the initial pose (parent transform) of this body, as set at
+   * construction. Used to compute static sensor-to-body transforms.
+   * @return Initial pose {x, y, theta}
+   */
+  const Pose &GetParentTransform() const { return parent_transform_; }
 
   /**
    * @brief Count the number of fixtures

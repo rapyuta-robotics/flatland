@@ -246,6 +246,12 @@ void World::FastSimTime(const std::string & /*agent*/) {
   // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
 }
 
+void World::InitializeDynamicFastSim(double /*max_lower_speed*/,
+                                      double /*min_lower_speed*/,
+                                      int /*num_robots_threshold*/) {
+  // Stub: dynamic fast-sim initialization not yet ported to Box2D v3 branch
+}
+
 void World::LoadLayers(YamlReader &layers_reader) {
   // loop through each layer and parse the data
   for (int i = 0; i < layers_reader.NodeSize(); i++) {
