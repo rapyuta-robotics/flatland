@@ -189,6 +189,15 @@ install(DIRECTORY include/${PROJECT_NAME}/
   FILES_MATCHING PATTERN "*.h"
 )
 
+# Install enkiTS headers alongside flatland_server headers.
+# world.h includes "TaskScheduler.h" with a relative include, so these must be
+# co-located with the installed flatland_server headers.
+install(FILES
+  ${enkits_SOURCE_DIR}/src/TaskScheduler.h
+  ${enkits_SOURCE_DIR}/src/LockLessMultiReadPipe.h
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
+
 # Install launchfiles
 install(DIRECTORY launch
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
