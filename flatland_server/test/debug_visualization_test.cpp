@@ -45,31 +45,35 @@
  */
 
 #include "flatland_server/debug_visualization.h"
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/timekeeper.h>
 #include <gtest/gtest.h>
 #include <ros/ros.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <cmath>
 
+// Helper: create a minimal b2WorldId for unit tests.
+static b2WorldId MakeTestWorld() {
+  b2WorldDef wd = b2DefaultWorldDef();
+  wd.gravity = {0.0f, 0.0f};
+  return b2CreateWorld(&wd);
+}
+
 // Test the bodyToMarkers method on a polygon shape
 TEST(DebugVizTest, testBodyToMarkersPolygon) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
+  b2BodyDef bodyDef = b2DefaultBodyDef();
   bodyDef.type = b2_dynamicBody;
-  bodyDef.position.Set(3.0f, 4.0f);
-  bodyDef.angle = M_PI_2;
-  b2Body* body = world.CreateBody(&bodyDef);
+  bodyDef.position = {3.0f, 4.0f};
+  bodyDef.rotation = b2MakeRot(M_PI_2);
+  b2BodyId body = b2CreateBody(world, &bodyDef);
 
-  b2PolygonShape dynamicBox;
-  dynamicBox.SetAsBox(1.0f, 2.0f);
-  b2FixtureDef fixtureDef;
-  fixtureDef.shape = &dynamicBox;
-  fixtureDef.density = 1.0f;
-  fixtureDef.friction = 0.3f;
-  body->CreateFixture(&fixtureDef);
+  b2Polygon box = b2MakeBox(1.0f, 2.0f);
+  b2ShapeDef shapeDef = b2DefaultShapeDef();
+  shapeDef.density = 1.0f;
+  shapeDef.friction = 0.3f;
+  b2CreatePolygonShape(body, &shapeDef, &box);
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body, 1.0,
@@ -99,10 +103,9 @@ TEST(DebugVizTest, testBodyToMarkersPolygon) {
   ASSERT_NEAR(markers.markers[0].pose.orientation.z, 0.70710678118, 1e-5);
   ASSERT_NEAR(markers.markers[0].pose.orientation.w, 0.70710678118, 1e-5);
 
-  // Check the marker shape
+  // Check the marker shape (box = 4 vertices + close = 5 points)
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].LINE_STRIP);
-  ASSERT_EQ(markers.markers[0].points.size(),
-            5);  // box as line strip: 0, 1, 2, 3, 0
+  ASSERT_EQ(markers.markers[0].points.size(), 5);
   ASSERT_NEAR(markers.markers[0].points[0].x, -1.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[0].y, -2.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[1].x, 1.0, 1e-5);
@@ -113,265 +116,219 @@ TEST(DebugVizTest, testBodyToMarkersPolygon) {
   ASSERT_NEAR(markers.markers[0].points[3].y, 2.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[4].x, -1.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[4].y, -2.0, 1e-5);
+
+  b2DestroyWorld(world);
 }
 
 // Test the bodyToMarkers method on a circle shape
 TEST(DebugVizTest, testBodyToMarkersCircle) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
+  b2BodyDef bodyDef = b2DefaultBodyDef();
   bodyDef.type = b2_dynamicBody;
-  bodyDef.position.Set(3.0f, 4.0f);
-  bodyDef.angle = M_PI_2;
-  b2Body* body = world.CreateBody(&bodyDef);
+  bodyDef.position = {3.0f, 4.0f};
+  bodyDef.rotation = b2MakeRot(M_PI_2);
+  b2BodyId body = b2CreateBody(world, &bodyDef);
 
-  b2FixtureDef fixtureDef;
-  b2CircleShape circle;
-  circle.m_p.Set(2.0f, 3.0f);
-  circle.m_radius = 0.2f;
-  fixtureDef.shape = &circle;
-  body->CreateFixture(&fixtureDef);
+  b2Circle circle;
+  circle.center = {2.0f, 3.0f};
+  circle.radius = 0.2f;
+  b2ShapeDef shapeDef = b2DefaultShapeDef();
+  b2CreateCircleShape(body, &shapeDef, &circle);
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body, 1.0,
                                                            0.0, 0.0, 1.0);
-  // check that marker was created
   ASSERT_EQ(markers.markers.size(), 1);
-
-  // Check the marker shape
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].SPHERE_LIST);
   ASSERT_NEAR(markers.markers[0].scale.x, 0.4, 1e-5);
   ASSERT_NEAR(markers.markers[0].scale.y, 0.4, 1e-5);
   ASSERT_NEAR(markers.markers[0].scale.z, 0.01, 1e-5);
+
+  b2DestroyWorld(world);
 }
 
-// Test the bodyToMarkers method on a edge shape
+// Test the bodyToMarkers method on a segment (edge) shape
 TEST(DebugVizTest, testBodyToMarkersEdge) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
-  b2Body* body = world.CreateBody(&bodyDef);
+  b2BodyDef bodyDef = b2DefaultBodyDef();
+  b2BodyId body = b2CreateBody(world, &bodyDef);
 
-  b2FixtureDef fixtureDef;
-  b2EdgeShape edge;
-  edge.m_vertex1.Set(0.5, 1.5);
-  edge.m_vertex2.Set(3.5, 2.0);
-  fixtureDef.shape = &edge;
-  body->CreateFixture(&fixtureDef);
+  b2Segment seg = {{0.5f, 1.5f}, {3.5f, 2.0f}};
+  b2ShapeDef shapeDef = b2DefaultShapeDef();
+  b2CreateSegmentShape(body, &shapeDef, &seg);
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body, 1.0,
                                                            0.0, 0.0, 1.0);
-  // check that marker was created
   ASSERT_EQ(markers.markers.size(), 1);
-
-  // Check the marker shape
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].LINE_LIST);
   ASSERT_EQ(markers.markers[0].points.size(), 2);
   ASSERT_NEAR(markers.markers[0].points[0].x, 0.5, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[0].y, 1.5, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[1].x, 3.5, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[1].y, 2.0, 1e-5);
+
+  b2DestroyWorld(world);
 }
 
-// Test the bodyToMarkers method on an unsupported shape
+// Test the bodyToMarkers method on an unsupported shape (body with no shapes)
 TEST(DebugVizTest, testBodyToMarkersUnsupported) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
-  b2Body* body = world.CreateBody(&bodyDef);
-
-  b2FixtureDef fixtureDef;
-  b2Vec2 vs[4];
-  vs[0].Set(1.7f, 0.0f);
-  vs[1].Set(1.0f, 0.25f);
-  vs[2].Set(0.0f, 0.0f);
-  vs[3].Set(-1.7f, 0.4f);
-  b2ChainShape chain;
-  chain.CreateChain(vs, 4);
-  fixtureDef.shape = &chain;
-  body->CreateFixture(&fixtureDef);
+  b2BodyDef bodyDef = b2DefaultBodyDef();
+  b2BodyId body = b2CreateBody(world, &bodyDef);
+  // No shapes added 窶・BodyToMarkers should produce no markers
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body, 1.0,
                                                            0.0, 0.0, 1.0);
-  // check that marker was not created
   ASSERT_EQ(markers.markers.size(), 0);
+
+  b2DestroyWorld(world);
 }
 
-// test bodyToMarkers with a body with multiple fixtures
+// test bodyToMarkers with a body with multiple segment shapes
 TEST(DebugVizTest, testBodyToMarkersMultifixture) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
-  b2Body* body = world.CreateBody(&bodyDef);
+  b2BodyDef bodyDef = b2DefaultBodyDef();
+  b2BodyId body = b2CreateBody(world, &bodyDef);
 
-  // body 2 before body 1 because fixture ordering is LIFO in box2d
-  b2FixtureDef fixtureDef, fixtureDef2;
-  b2EdgeShape edge, edge2;
-
-  edge2.m_vertex1.Set(-1.0, 3.0);
-  edge2.m_vertex2.Set(5.0, 7.0);
-  fixtureDef2.shape = &edge2;
-  body->CreateFixture(&fixtureDef2);
-
-  edge.m_vertex1.Set(0.0, 1.0);
-  edge.m_vertex2.Set(1.0, 2.0);
-  fixtureDef.shape = &edge;
-  body->CreateFixture(&fixtureDef);
+  b2ShapeDef shapeDef = b2DefaultShapeDef();
+  b2Segment edge1 = {{0.0f, 1.0f}, {1.0f, 2.0f}};
+  b2Segment edge2 = {{-1.0f, 3.0f}, {5.0f, 7.0f}};
+  b2CreateSegmentShape(body, &shapeDef, &edge1);
+  b2CreateSegmentShape(body, &shapeDef, &edge2);
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body, 1.0,
                                                            0.0, 0.0, 1.0);
-  // check that one marker was created
+  // Both segments get combined into one LINE_LIST marker
   ASSERT_EQ(markers.markers.size(), 1);
-
-  // Check the 1st marker
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].LINE_LIST);
   ASSERT_EQ(markers.markers[0].points.size(), 4);
-  ASSERT_NEAR(markers.markers[0].points[0].x, 0.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[0].y, 1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[1].x, 1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[1].y, 2.0, 1e-5);
 
-  // check the "2nd marker"
-  ASSERT_NEAR(markers.markers[0].points[2].x, -1.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[2].y, 3.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[3].x, 5.0, 1e-5);
-  ASSERT_NEAR(markers.markers[0].points[3].y, 7.0, 1e-5);
+  b2DestroyWorld(world);
 }
 
 // test bodyToMarkers with multiple bodies
 TEST(DebugVizTest, testBodyToMarkersMultibody) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
-  b2Body* body = world.CreateBody(&bodyDef);
-  b2Body* body2 = world.CreateBody(&bodyDef);
+  b2BodyDef bodyDef = b2DefaultBodyDef();
+  b2BodyId body = b2CreateBody(world, &bodyDef);
+  b2BodyId body2 = b2CreateBody(world, &bodyDef);
 
-  b2FixtureDef fixtureDef, fixtureDef2;
-  b2EdgeShape edge, edge2;
-
-  edge.m_vertex1.Set(0.0, 1.0);
-  edge.m_vertex2.Set(1.0, 2.0);
-  fixtureDef.shape = &edge;
-  body->CreateFixture(&fixtureDef);
-
-  edge2.m_vertex1.Set(-1.0, 3.0);
-  edge2.m_vertex2.Set(5.0, 7.0);
-  fixtureDef2.shape = &edge2;
-  body2->CreateFixture(&fixtureDef2);
+  b2ShapeDef shapeDef = b2DefaultShapeDef();
+  b2Segment edge1 = {{0.0f, 1.0f}, {1.0f, 2.0f}};
+  b2Segment edge2 = {{-1.0f, 3.0f}, {5.0f, 7.0f}};
+  b2CreateSegmentShape(body, &shapeDef, &edge1);
+  b2CreateSegmentShape(body2, &shapeDef, &edge2);
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body, 1.0,
                                                            0.0, 0.0, 1.0);
   flatland_server::DebugVisualization::Get().BodyToMarkers(markers, body2, 1.0,
                                                            0.0, 0.0, 1.0);
-  // check that marker was created
+  // Both bodies' segments extend the same LINE_LIST marker
   ASSERT_EQ(markers.markers.size(), 1);
-
-  // Check the 1st marker
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].LINE_LIST);
   ASSERT_EQ(markers.markers[0].points.size(), 4);
+  // First body edge
   ASSERT_NEAR(markers.markers[0].points[0].x, 0.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[0].y, 1.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[1].x, 1.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[1].y, 2.0, 1e-5);
-
-  // check the "2nd marker"
+  // Second body edge
   ASSERT_NEAR(markers.markers[0].points[2].x, -1.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[2].y, 3.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[3].x, 5.0, 1e-5);
   ASSERT_NEAR(markers.markers[0].points[3].y, 7.0, 1e-5);
+
+  b2DestroyWorld(world);
 }
 
-// test bodyToMarkers with multiple joint
+// test JointToMarkers with multiple weld joints
 TEST(DebugVizTest, testJointToMarkersMultiJoint) {
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
-  b2Body* b1 = world.CreateBody(&bodyDef);
-  b2Body* b2 = world.CreateBody(&bodyDef);
+  b2BodyDef bodyDef = b2DefaultBodyDef();
+  b2BodyId b1 = b2CreateBody(world, &bodyDef);
+  b2BodyId b2body = b2CreateBody(world, &bodyDef);
 
-  b2WeldJointDef jd1, jd2;
-  jd1.bodyA = b1;
-  jd1.bodyB = b2;
-  jd1.localAnchorA = b2Vec2(0, 0);
-  jd1.localAnchorB = b2Vec2(0, 0);
-  jd2.bodyA = b1;
-  jd2.bodyB = b2;
-  jd2.localAnchorA = b2Vec2(1, 2);
-  jd2.localAnchorB = b2Vec2(3, 4);
+  b2WeldJointDef jd1 = b2DefaultWeldJointDef();
+  jd1.bodyIdA = b1;
+  jd1.bodyIdB = b2body;
+  jd1.localAnchorA = {0.0f, 0.0f};
+  jd1.localAnchorB = {0.0f, 0.0f};
+  b2JointId j1 = b2CreateWeldJoint(world, &jd1);
 
-  b2Joint* j1 = world.CreateJoint(&jd1);
-  b2Joint* j2 = world.CreateJoint(&jd2);
+  b2WeldJointDef jd2 = b2DefaultWeldJointDef();
+  jd2.bodyIdA = b1;
+  jd2.bodyIdB = b2body;
+  jd2.localAnchorA = {1.0f, 2.0f};
+  jd2.localAnchorB = {3.0f, 4.0f};
+  b2JointId j2 = b2CreateWeldJoint(world, &jd2);
 
   visualization_msgs::MarkerArray markers;
   flatland_server::DebugVisualization::Get().JointToMarkers(markers, j1, 0.1,
                                                             0.2, 0.3, 0.4);
   flatland_server::DebugVisualization::Get().JointToMarkers(markers, j2, 0.5,
                                                             0.6, 0.7, 0.8);
-  // check that marker was created
   ASSERT_EQ(markers.markers.size(), 4);
 
-  // Check the 1st marker
+  // Check the 1st marker (j1: all anchors at origin)
   ASSERT_EQ(markers.markers[0].type, markers.markers[0].LINE_LIST);
   ASSERT_EQ(markers.markers[0].points.size(), 6);
-
   for (unsigned int i = 0; i < 6; i++) {
     ASSERT_FLOAT_EQ(markers.markers[0].points[i].x, 0.0) << "index: " << i;
     ASSERT_FLOAT_EQ(markers.markers[0].points[i].y, 0.0) << "index: " << i;
   }
-
   ASSERT_FLOAT_EQ(markers.markers[0].color.r, 0.1);
   ASSERT_FLOAT_EQ(markers.markers[0].color.g, 0.2);
   ASSERT_FLOAT_EQ(markers.markers[0].color.b, 0.3);
   ASSERT_FLOAT_EQ(markers.markers[0].color.a, 0.4);
 
-  // Check the 2nd marker
+  // Check the 2nd marker (j1 CUBE_LIST: anchors at origin)
   ASSERT_EQ(markers.markers[1].type, markers.markers[1].CUBE_LIST);
   ASSERT_EQ(markers.markers[1].points.size(), 4);
-
   for (unsigned int i = 0; i < 4; i++) {
     ASSERT_FLOAT_EQ(markers.markers[1].points[i].x, 0.0) << "index: " << i;
     ASSERT_FLOAT_EQ(markers.markers[1].points[i].y, 0.0) << "index: " << i;
   }
 
-  // Check the 3rd marker
-  ASSERT_EQ(markers.markers[2].type, markers.markers[3].LINE_LIST);
+  // Check the 3rd marker (j2 LINE_LIST: bodyA->anchorA, bodyB->anchorB, anchorA->anchorB)
+  // All bodies at (0,0); anchorA=(1,2), anchorB=(3,4)
+  ASSERT_EQ(markers.markers[2].type, markers.markers[2].LINE_LIST);
   ASSERT_EQ(markers.markers[2].points.size(), 6);
-  ASSERT_FLOAT_EQ(markers.markers[2].points[0].x, 0.0);
+  ASSERT_FLOAT_EQ(markers.markers[2].points[0].x, 0.0);   // bodyA pos
   ASSERT_FLOAT_EQ(markers.markers[2].points[0].y, 0.0);
-  ASSERT_FLOAT_EQ(markers.markers[2].points[1].x, 1.0);
+  ASSERT_FLOAT_EQ(markers.markers[2].points[1].x, 1.0);   // anchorA world
   ASSERT_FLOAT_EQ(markers.markers[2].points[1].y, 2.0);
-
-  ASSERT_FLOAT_EQ(markers.markers[2].points[2].x, 0.0);
+  ASSERT_FLOAT_EQ(markers.markers[2].points[2].x, 0.0);   // bodyB pos
   ASSERT_FLOAT_EQ(markers.markers[2].points[2].y, 0.0);
-  ASSERT_FLOAT_EQ(markers.markers[2].points[3].x, 3.0);
+  ASSERT_FLOAT_EQ(markers.markers[2].points[3].x, 3.0);   // anchorB world
   ASSERT_FLOAT_EQ(markers.markers[2].points[3].y, 4.0);
-
-  ASSERT_FLOAT_EQ(markers.markers[2].points[4].x, 1.0);
+  ASSERT_FLOAT_EQ(markers.markers[2].points[4].x, 1.0);   // anchorA
   ASSERT_FLOAT_EQ(markers.markers[2].points[4].y, 2.0);
-  ASSERT_FLOAT_EQ(markers.markers[2].points[5].x, 3.0);
+  ASSERT_FLOAT_EQ(markers.markers[2].points[5].x, 3.0);   // anchorB
   ASSERT_FLOAT_EQ(markers.markers[2].points[5].y, 4.0);
 
-  // Check the 4th marker
+  // Check the 4th marker (j2 CUBE_LIST)
   ASSERT_EQ(markers.markers[3].type, markers.markers[3].CUBE_LIST);
   ASSERT_EQ(markers.markers[3].points.size(), 4);
-  ASSERT_FLOAT_EQ(markers.markers[3].points[0].x, 1.0);
+  ASSERT_FLOAT_EQ(markers.markers[3].points[0].x, 1.0);  // anchorA
   ASSERT_FLOAT_EQ(markers.markers[3].points[0].y, 2.0);
-  ASSERT_FLOAT_EQ(markers.markers[3].points[1].x, 3.0);
+  ASSERT_FLOAT_EQ(markers.markers[3].points[1].x, 3.0);  // anchorB
   ASSERT_FLOAT_EQ(markers.markers[3].points[1].y, 4.0);
-  ASSERT_FLOAT_EQ(markers.markers[3].points[2].x, 0.0);
+  ASSERT_FLOAT_EQ(markers.markers[3].points[2].x, 0.0);  // bodyA pos
   ASSERT_FLOAT_EQ(markers.markers[3].points[2].y, 0.0);
-  ASSERT_FLOAT_EQ(markers.markers[3].points[3].x, 0.0);
+  ASSERT_FLOAT_EQ(markers.markers[3].points[3].x, 0.0);  // bodyB pos
   ASSERT_FLOAT_EQ(markers.markers[3].points[3].y, 0.0);
+
+  b2DestroyWorld(world);
 }
 
 // A helper class to accept MarkerArray message callbacks
@@ -381,25 +338,14 @@ struct MarkerArraySubscriptionHelper {
 
   MarkerArraySubscriptionHelper() : count_(0) {}
 
-  /**
-   * @brief callback that stores the last message and total message count
-   * @param msg The input message pointer
-   */
   void callback(const visualization_msgs::MarkerArrayConstPtr& msg) {
     ++count_;
     ROS_INFO("GOT ONE");
-    markers_ = visualization_msgs::MarkerArray(*msg);  // Copy the message
+    markers_ = visualization_msgs::MarkerArray(*msg);
   }
 
-  /**
-   * @brief Wait up to 2 seconds for a specific message count
-   *
-   * @param count The message count to wait for
-   *
-   * @return true if successful
-   */
   bool waitForMessageCount(int count) {
-    ros::Rate rate(10);  // throttle check to 10Hz
+    ros::Rate rate(10);
     for (unsigned int i = 0; i < 20; i++) {
       ros::spinOnce();
       if (count_ >= count) return true;
@@ -409,33 +355,30 @@ struct MarkerArraySubscriptionHelper {
   }
 };
 
-// Test the bodyToMarkers method on an unsupported shape
+// Test publish/reset of visualization markers
 TEST(DebugVizTest, testPublishMarkers) {
   flatland_server::Timekeeper timekeeper;
   timekeeper.SetMaxStepSize(0.01);
 
-  b2Vec2 gravity(0.0, 0.0);
-  b2World world(gravity);
+  b2WorldId world = MakeTestWorld();
 
-  b2BodyDef bodyDef;
-  b2Body* body = world.CreateBody(&bodyDef);
-  b2Body* body2 = world.CreateBody(&bodyDef);
+  b2BodyDef bodyDef = b2DefaultBodyDef();
+  b2BodyId body = b2CreateBody(world, &bodyDef);
+  b2BodyId body2 = b2CreateBody(world, &bodyDef);
 
-  b2FixtureDef fixtureDef;
-  b2CircleShape circle;
-  circle.m_p.Set(2.0f, 3.0f);
-  circle.m_radius = 0.2f;
-  fixtureDef.shape = &circle;
-  body->CreateFixture(&fixtureDef);
+  b2Circle circle;
+  circle.center = {2.0f, 3.0f};
+  circle.radius = 0.2f;
+  b2ShapeDef shapeDef = b2DefaultShapeDef();
+  b2CreateCircleShape(body, &shapeDef, &circle);
 
-  b2WeldJointDef joint_def;
-  joint_def.bodyA = body;
-  joint_def.bodyB = body2;
-  joint_def.localAnchorA = b2Vec2(0, 0);
-  joint_def.localAnchorB = b2Vec2(0, 0);
-  b2Joint* joint = world.CreateJoint(&joint_def);
+  b2WeldJointDef jd = b2DefaultWeldJointDef();
+  jd.bodyIdA = body;
+  jd.bodyIdB = body2;
+  jd.localAnchorA = {0.0f, 0.0f};
+  jd.localAnchorB = {0.0f, 0.0f};
+  b2JointId joint = b2CreateWeldJoint(world, &jd);
 
-  // Set up helper class subscribing to rostopic
   ros::NodeHandle nh;
   MarkerArraySubscriptionHelper helper;
   ros::Subscriber sub =
@@ -445,7 +388,6 @@ TEST(DebugVizTest, testPublishMarkers) {
   flatland_server::DebugVisualization::Get().Visualize("example", body, 1.0,
                                                        0.0, 0.0, 1.0);
 
-  // Check pre publish conditions
   EXPECT_EQ(flatland_server::DebugVisualization::Get().topics_.size(), 1);
   ros::spinOnce();
   EXPECT_EQ(helper.count_, 0);
@@ -453,25 +395,16 @@ TEST(DebugVizTest, testPublishMarkers) {
                 .topics_["example"]
                 .needs_publishing,
             true);
-
-  // Check that there is a publisher
   EXPECT_EQ(sub.getNumPublishers(), 1);
 
-  // Publish
   flatland_server::DebugVisualization::Get().Publish(timekeeper);
-
-  // Verify that message was published
   EXPECT_TRUE(helper.waitForMessageCount(1));
   EXPECT_EQ(helper.markers_.markers.size(), 1);
 
-  // Publish again (should have no change- nothing needs publishing)
   flatland_server::DebugVisualization::Get().Publish(timekeeper);
-
-  // Verify that message was published
   EXPECT_TRUE(helper.waitForMessageCount(1));
   EXPECT_EQ(1, helper.markers_.markers.size());
 
-  // Publish some more markers
   flatland_server::DebugVisualization::Get().Visualize("example", body, 1.0,
                                                        0.0, 0.0, 1.0);
   flatland_server::DebugVisualization::Get().Visualize("example", body, 1.0,
@@ -480,26 +413,20 @@ TEST(DebugVizTest, testPublishMarkers) {
   flatland_server::DebugVisualization::Get().Visualize("example", joint, 1.0,
                                                        0.0, 0.0, 1.0);
   flatland_server::DebugVisualization::Get().Publish(timekeeper);
+  EXPECT_TRUE(helper.waitForMessageCount(2));
+  EXPECT_EQ(5, helper.markers_.markers.size());
 
-  // Verify that message was published
-  EXPECT_TRUE(helper.waitForMessageCount(2));    // Published twice
-  EXPECT_EQ(5, helper.markers_.markers.size());  // 5 markers in latest msg
-
-  // Reset marker list, this empties the markers array, and topics having
-  // empty markers are automatically deleted
   flatland_server::DebugVisualization::Get().Reset("example");
   flatland_server::DebugVisualization::Get().Publish(timekeeper);
+  EXPECT_TRUE(helper.waitForMessageCount(2));
 
-  // Verify that message was published
-  EXPECT_TRUE(helper.waitForMessageCount(2));  // Published two times
-
-  // publish again with some contents, and the topic is created again
   flatland_server::DebugVisualization::Get().Visualize("example", joint, 1.0,
                                                        0.0, 0.0, 1.0);
   flatland_server::DebugVisualization::Get().Publish(timekeeper);
-
   EXPECT_TRUE(helper.waitForMessageCount(3));
   EXPECT_EQ(2, helper.markers_.markers.size());
+
+  b2DestroyWorld(world);
 }
 
 // Run all the tests that were declared with TEST()

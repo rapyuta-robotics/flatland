@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_plugins/diff_drive.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/model_plugin.h>
@@ -62,7 +62,10 @@ void DiffDrive::TwistCallback(const geometry_msgs::Twist& msg) {
 void DiffDrive::OnInitialize(const YAML::Node& config) {
   YamlReader reader(config);
   enable_odom_pub_ = reader.Get<bool>("enable_odom_pub", true);
+  enable_odom_tf_pub_ = reader.Get<bool>("enable_odom_tf_pub", true);
   enable_twist_pub_ = reader.Get<bool>("enable_twist_pub", true);
+  enable_ground_truth_pub_ = reader.Get<bool>("enable_ground_truth_pub", true);
+  twist_in_local_frame_ = reader.Get<bool>("twist_in_local_frame", true);
   std::string body_name = reader.Get<std::string>("body");
   std::string odom_frame_id = reader.Get<std::string>("odom_frame_id", "odom");
 
@@ -121,6 +124,9 @@ void DiffDrive::OnInitialize(const YAML::Node& config) {
   twist_sub_ = nh_.subscribe(twist_topic, 1, &DiffDrive::TwistCallback, this);
   if (enable_odom_pub_) {
     odom_pub_ = nh_.advertise<nav_msgs::Odometry>(odom_topic, 1);
+  }
+
+  if (enable_ground_truth_pub_) {
     ground_truth_pub_ =
         nh_.advertise<nav_msgs::Odometry>(ground_truth_topic, 1);
   }
@@ -172,10 +178,10 @@ void DiffDrive::OnInitialize(const YAML::Node& config) {
 void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   bool publish = update_timer_.CheckUpdate(timekeeper);
 
-  b2Body* b2body = body_->physics_body_;
+  b2BodyId b2body = body_->physics_body_;
 
-  b2Vec2 position = b2body->GetPosition();
-  float angle = b2body->GetAngle();
+  b2Vec2 position = b2Body_GetPosition(b2body);
+  float angle = b2Rot_GetAngle(b2Body_GetRotation(b2body));
 
   // Apply dynamics limits
   double dt = timekeeper.GetStepSize();
@@ -185,9 +191,9 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   // we apply the twist velocities, this must be done every physics step to make
   // sure Box2D solver applies the correct velocity through out. The velocity
   // given in the twist message should be in the local frame
-  b2Vec2 linear_vel_local(linear_velocity_, 0);
-  b2Vec2 linear_vel = b2body->GetWorldVector(linear_vel_local);
-  float angular_vel = angular_velocity_;  // angular is independent of frames
+  b2Vec2 linear_vel_local = {static_cast<float>(linear_velocity_), 0.0f};
+  b2Vec2 linear_vel = b2Body_GetWorldVector(b2body, linear_vel_local);
+  float angular_vel = static_cast<float>(angular_velocity_);
 
   // we want the velocity vector in the world frame at the center of mass
 
@@ -197,19 +203,22 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
   // center of mass
 
   // r is the vector from body origin to the CM in world frame
-  b2Vec2 r = b2body->GetWorldCenter() - position;
-  b2Vec2 linear_vel_cm = linear_vel + angular_vel * b2Vec2(-r.y, r.x);
+  b2Vec2 com = b2Body_GetLocalCenterOfMass(b2body);
+  b2Vec2 wcom = b2Body_GetWorldPoint(b2body, com);
+  b2Vec2 r = {wcom.x - position.x, wcom.y - position.y};
+  b2Vec2 linear_vel_cm = {linear_vel.x + angular_vel * (-r.y),
+                          linear_vel.y + angular_vel * r.x};
 
-  b2body->SetLinearVelocity(linear_vel_cm);
-  b2body->SetAngularVelocity(angular_vel);
+  b2Body_SetLinearVelocity(b2body, linear_vel_cm);
+  b2Body_SetAngularVelocity(b2body, angular_vel);
 
   // Update odom+ground truth messages if needed
 
   if (publish) {
     // get the state of the body and publish the data
-    b2Vec2 linear_vel_local =
-        b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0));
-    float angular_vel = b2body->GetAngularVelocity();
+    b2Vec2 local_vel_world = b2Body_GetLinearVelocity(b2body);
+    b2Vec2 linear_vel_local_meas = b2Body_GetLocalVector(b2body, local_vel_world);
+    float angular_vel = b2Body_GetAngularVelocity(b2body);
 
     ground_truth_msg_.header.stamp = timekeeper.GetSimTime();
     ground_truth_msg_.pose.pose.position.x = position.x;
@@ -217,8 +226,8 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
     ground_truth_msg_.pose.pose.position.z = 0;
     ground_truth_msg_.pose.pose.orientation =
         tf::createQuaternionMsgFromYaw(angle);
-    ground_truth_msg_.twist.twist.linear.x = linear_vel_local.x;
-    ground_truth_msg_.twist.twist.linear.y = linear_vel_local.y;
+    ground_truth_msg_.twist.twist.linear.x = linear_vel_local_meas.x;
+    ground_truth_msg_.twist.twist.linear.y = linear_vel_local_meas.y;
     ground_truth_msg_.twist.twist.linear.z = 0;
     ground_truth_msg_.twist.twist.angular.x = 0;
     ground_truth_msg_.twist.twist.angular.y = 0;
@@ -236,8 +245,11 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
     odom_msg_.twist.twist.linear.y += noise_gen_[4](rng_);
     odom_msg_.twist.twist.angular.z += noise_gen_[5](rng_);
 
-    if (enable_odom_pub_) {
+    if (enable_ground_truth_pub_) {
       ground_truth_pub_.publish(ground_truth_msg_);
+    }
+
+    if (enable_odom_pub_) {
       odom_pub_.publish(odom_msg_);
     }
 
@@ -249,8 +261,8 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
       twist_pub_msg.header.frame_id = odom_msg_.child_frame_id;
 
       // Forward velocity in twist.linear.x
-      twist_pub_msg.twist.linear.x = cos(angle) * linear_vel_local.x +
-                                     sin(angle) * linear_vel_local.y +
+      twist_pub_msg.twist.linear.x = cos(angle) * linear_vel_local_meas.x +
+                                     sin(angle) * linear_vel_local_meas.y +
                                      noise_gen_[3](rng_);
 
       // Angular velocity in twist.angular.z
@@ -259,14 +271,16 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
     }
 
     // publish odom tf
-    geometry_msgs::TransformStamped odom_tf;
-    odom_tf.header = odom_msg_.header;
-    odom_tf.child_frame_id = odom_msg_.child_frame_id;
-    odom_tf.transform.translation.x = odom_msg_.pose.pose.position.x;
-    odom_tf.transform.translation.y = odom_msg_.pose.pose.position.y;
-    odom_tf.transform.translation.z = 0;
-    odom_tf.transform.rotation = odom_msg_.pose.pose.orientation;
-    tf_broadcaster.sendTransform(odom_tf);
+    if (enable_odom_tf_pub_) {
+      geometry_msgs::TransformStamped odom_tf;
+      odom_tf.header = odom_msg_.header;
+      odom_tf.child_frame_id = odom_msg_.child_frame_id;
+      odom_tf.transform.translation.x = odom_msg_.pose.pose.position.x;
+      odom_tf.transform.translation.y = odom_msg_.pose.pose.position.y;
+      odom_tf.transform.translation.z = 0;
+      odom_tf.transform.rotation = odom_msg_.pose.pose.orientation;
+      tf_broadcaster.sendTransform(odom_tf);
+    }
   }
 
 }

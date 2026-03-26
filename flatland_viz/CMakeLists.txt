@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(flatland_viz)
 
 # Get the LSB release name (14.04 or 16.04) string into variable ${LSB_RELEASE_VALUE}
@@ -70,6 +70,7 @@ link_directories(${catkin_LIBRARY_DIRS})
 
 ## This setting causes Qt's "MOC" generation to happen automatically.
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOMOC_COMPILER_PREDEFINES OFF)
 
 ## This plugin includes Qt widgets, so we must include Qt.
 ## We'll use the version that rviz used so they are compatible.

@@ -47,14 +47,17 @@
 #ifndef FLATLAND_SERVER_SIMULATION_MANAGER_H
 #define FLATLAND_SERVER_SIMULATION_MANAGER_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
+#include <flatland_server/service_manager.h>
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/world.h>
+#include <memory>
 #include <string>
 
 namespace flatland_server {
 
+class ServiceManager;
 class SimulationManager {
  public:
   bool run_simulator_;           ///<  While true, keep running the sim loop
@@ -64,17 +67,23 @@ class SimulationManager {
   bool show_viz_;                ///< flag to determine if to show visualization
   double viz_pub_rate_;          ///< rate to publish visualization
   std::string world_yaml_file_;  ///< path to the world file
+  std::string models_path_;      ///< path to models directory
+  std::string world_plugins_path_;  ///< path to world plugins yaml
+
+  std::unique_ptr<flatland_server::ServiceManager> service_manager_;
 
   /**
    * @name  Simulation Manager constructor
-   * @param[in] world_file The path to the world.yaml file we wish to load
+   * @param[in] world_yaml_file The path to the world.yaml file we wish to load
+   * @param[in] models_path Path to models directory
+   * @param[in] world_plugins_path Path to world plugins yaml
    * @param[in] update_rate Simulator loop rate
    * @param[in] step_size Time to step each iteration
    * @param[in] show_viz if to show visualization
    * @param[in] viz_pub_rate rate to publish visualization
-   * behaving ones
    */
-  SimulationManager(std::string world_yaml_file, double update_rate,
+  SimulationManager(std::string world_yaml_file, std::string models_path,
+                    std::string world_plugins_path, double update_rate,
                     double step_size, bool show_viz, double viz_pub_rate);
 
   /**

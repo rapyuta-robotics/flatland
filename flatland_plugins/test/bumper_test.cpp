@@ -217,7 +217,7 @@ TEST_F(BumperPluginTest, collision_test) {
   for (unsigned int i = 0; i < 150; i++) {
     // Box2D needs velocity to be set every time step to ensure things are
     // moving at the desired velocity
-    b0->physics_body_->SetLinearVelocity(b2Vec2(1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -230,7 +230,7 @@ TEST_F(BumperPluginTest, collision_test) {
 
   // step another 5 times which moves 0.5 meters colliding base_link_2 as well
   for (unsigned int i = 0; i < 50; i++) {
-    b0->physics_body_->SetLinearVelocity(b2Vec2(1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -246,7 +246,7 @@ TEST_F(BumperPluginTest, collision_test) {
 
   // Now move backward far away from the wall, there collisions should clear
   for (unsigned int i = 0; i < 300; i++) {
-    b0->physics_body_->SetLinearVelocity(b2Vec2(-1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{-1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -257,11 +257,11 @@ TEST_F(BumperPluginTest, collision_test) {
 
   // Teleport the body to the other side of the wall, try hitting the wall from
   // the other direction, the collision normal vector should be flipped now
-  b0->physics_body_->SetTransform(b2Vec2(4, 0), 0);
-  b1->physics_body_->SetTransform(b2Vec2(4, 0), 0);
+  b2Body_SetTransform(b0->physics_body_, b2Vec2{4, 0}, b2MakeRot(0));
+  b2Body_SetTransform(b1->physics_body_, b2Vec2{4, 0}, b2MakeRot(0));
 
   for (unsigned int i = 0; i < 300; i++) {
-    b0->physics_body_->SetLinearVelocity(b2Vec2(-1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{-1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }

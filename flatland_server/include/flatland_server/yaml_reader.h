@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_YAML_READER_H
 #define FLATLAND_SERVER_YAML_READER_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/exceptions.h>
 #include <flatland_server/types.h>
 #include <yaml-cpp/yaml.h>

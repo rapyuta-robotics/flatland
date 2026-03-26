@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/exceptions.h>
 #include <flatland_server/geometry.h>
@@ -68,7 +68,7 @@
 
 namespace flatland_server {
 
-Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer::Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
              const Pose &origin, const cv::Mat &bitmap, double occupied_thresh,
              double resolution, const YAML::Node &properties)
@@ -82,7 +82,7 @@ Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
   LoadFromBitmap(bitmap, occupied_thresh, resolution);
 }
 
-Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer::Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
              const Pose &origin, const std::vector<LineSegment> &line_segments,
              double scale, const YAML::Node &properties)
@@ -96,21 +96,21 @@ Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
   uint16_t category_bits = cfr_->GetCategoryBits(names_);
 
   for (const auto &line_segment : line_segments) {
-    b2EdgeShape edge;
-    edge.Set(line_segment.start.Box2D(), line_segment.end.Box2D());
-    edge.m_vertex1 *= scale;
-    edge.m_vertex2 *= scale;
+    b2Vec2 sv = line_segment.start.Box2D();
+    b2Vec2 ev = line_segment.end.Box2D();
+    sv.x *= static_cast<float>(scale); sv.y *= static_cast<float>(scale);
+    ev.x *= static_cast<float>(scale); ev.y *= static_cast<float>(scale);
 
-    b2FixtureDef fixture_def;
-    fixture_def.shape = &edge;
-    fixture_def.filter.categoryBits = category_bits;
-    fixture_def.filter.maskBits = fixture_def.filter.categoryBits;
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    shape_def.filter.categoryBits = category_bits;
+    shape_def.filter.maskBits = category_bits;
+    b2Segment seg = {sv, ev};
     // todo: add material information
-    body_->physics_body_->CreateFixture(&fixture_def);
+    b2CreateSegmentShape(body_->physics_body_, &shape_def, &seg);
   }
 }
 
-Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer::Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
              const YAML::Node &properties)
     : Entity(physics_world, names[0]),
@@ -125,7 +125,7 @@ const std::vector<std::string> &Layer::GetNames() const { return names_; }
 const CollisionFilterRegistry *Layer::GetCfr() const { return cfr_; }
 Body *Layer::GetBody() { return body_; }
 
-Layer *Layer::MakeLayer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer *Layer::MakeLayer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
                         const std::string &map_path,
                         const std::vector<std::string> &names,
                         const Color &color, const YAML::Node &properties) {
@@ -222,18 +222,17 @@ void Layer::LoadFromBitmap(const cv::Mat &bitmap, double occupied_thresh,
   uint16_t category_bits = cfr_->GetCategoryBits(names_);
 
   auto add_edge = [&](double x1, double y1, double x2, double y2) {
-    b2EdgeShape edge;
     double rows = bitmap.rows;
     double res = resolution;
 
-    edge.Set(b2Vec2(res * x1, res * (rows - y1)),
-             b2Vec2(res * x2, res * (rows - y2)));
+    b2Vec2 v1 = {static_cast<float>(res * x1), static_cast<float>(res * (rows - y1))};
+    b2Vec2 v2 = {static_cast<float>(res * x2), static_cast<float>(res * (rows - y2))};
+    b2Segment seg = {v1, v2};
 
-    b2FixtureDef fixture_def;
-    fixture_def.shape = &edge;
-    fixture_def.filter.categoryBits = category_bits;
-    fixture_def.filter.maskBits = fixture_def.filter.categoryBits;
-    body_->physics_body_->CreateFixture(&fixture_def);
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    shape_def.filter.categoryBits = category_bits;
+    shape_def.filter.maskBits = category_bits;
+    b2CreateSegmentShape(body_->physics_body_, &shape_def, &seg);
   };
 
   cv::Mat padded_map, obstacle_map;
@@ -334,9 +333,10 @@ void Layer::DebugOutput() const {
   uint16_t category_bits = cfr_->GetCategoryBits(names_);
 
   ROS_DEBUG_NAMED("Layer",
-                  "Layer %p: physics_world(%p) name(%s) names(%s) "
+                  "Layer %p: physics_world(id=%d,%d) name(%s) names(%s) "
                   "category_bits(0x%X)",
-                  this, physics_world_, name_.c_str(), names.c_str(),
+                  this, physics_world_.index1, physics_world_.generation,
+                  name_.c_str(), names.c_str(),
                   category_bits);
 
   if (body_ != nullptr) {

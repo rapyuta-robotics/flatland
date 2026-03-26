@@ -61,10 +61,7 @@ Bumper::ContactState::ContactState() { Reset(); }
 
 void Bumper::ContactState::Reset() {
   num_count = 0;
-  sum_normal_impulses[0] = 0;
-  sum_normal_impulses[1] = 0;
-  sum_tangential_impulses[0] = 0;
-  sum_tangential_impulses[1] = 0;
+  sum_speed = 0.0;
 }
 
 void Bumper::OnInitialize(const YAML::Node &config) {
@@ -106,12 +103,9 @@ void Bumper::OnInitialize(const YAML::Node &config) {
 }
 
 void Bumper::BeforePhysicsStep(const Timekeeper &timekeeper) {
-  std::map<b2Contact *, ContactState>::iterator it;
-
-  // Clear the forces at the begining of every physics step since brand
-  // new collision resolutions are being calculated by Box2D each time step
-  for (it = contact_states_.begin(); it != contact_states_.end(); it++) {
-    it->second.Reset();
+  // Clear the forces at the beginning of every physics step
+  for (auto &kv : contact_states_) {
+    kv.second.Reset();
   }
 }
 
@@ -127,56 +121,33 @@ void Bumper::AfterPhysicsStep(const Timekeeper &timekeeper) {
     }
   }
 
-  std::map<b2Contact *, ContactState>::iterator it;
-
   flatland_msgs::Collisions collisions;
   collisions.header.frame_id = world_frame_id_;
   collisions.header.stamp = timekeeper.GetSimTime();
 
   // loop through all collisions in our record and publish
-  for (it = contact_states_.begin(); it != contact_states_.end(); it++) {
-    b2Contact *c = it->first;
-    ContactState *s = &it->second;
+  for (auto &kv : contact_states_) {
+    const ContactState &s = kv.second;
     flatland_msgs::Collision collision;
     collision.entity_A = GetModel()->GetName();
-    collision.entity_B = s->entity_B->name_;
+    collision.entity_B = s.entity_B->name_;
 
-    collision.body_A = s->body_A->name_;
-    collision.body_B = s->body_B->name_;
+    collision.body_A = s.body_A->name_;
+    collision.body_B = s.body_B->name_;
 
-    // If there was no post solve called, which means that the collision
-    // probably involves a Box2D sensor, therefore there are no contact points,
-    if (s->num_count > 0) {
-      b2Manifold *m = c->GetManifold();
-
-      // go through each collision point
-      for (int i = 0; i < m->pointCount; i++) {
-        // calculate average impulse during each time step, the impulse are
-        // converted to the applied force by dividing the step size
-        double ave_normal_impulse = s->sum_normal_impulses[i] / s->num_count;
-        double ave_tangential_impulse =
-            s->sum_tangential_impulses[i] / s->num_count;
-        double ave_normal_force = ave_normal_impulse / timekeeper.GetStepSize();
-        double ave_tangential_force =
-            ave_tangential_impulse / timekeeper.GetStepSize();
-
-        // Calculate the absolute magnitude of forces, forces are not provided
-        // in vector form because the forces are obtained from averaging
-        // Box2D impulses which are very inaccurate making them completely
-        // useless for anything other than ball parking the impact strength
-        double force_abs = sqrt(ave_normal_force * ave_normal_force +
-                                ave_tangential_force * ave_tangential_force);
-
-        collision.magnitude_forces.push_back(force_abs);
-        flatland_msgs::Vector2 point;
-        flatland_msgs::Vector2 normal;
-        point.x = s->points[i].x;
-        point.y = s->points[i].y;
-        normal.x = s->normal.x;
-        normal.y = s->normal.y;
-        collision.contact_positions.push_back(point);
-        collision.contact_normals.push_back(normal);
-      }
+    // If there was a hit event, publish the contact force estimate
+    if (s.num_count > 0) {
+      double ave_speed = s.sum_speed / s.num_count;
+      // approachSpeed in m/s; record as a magnitude force proxy
+      collision.magnitude_forces.push_back(ave_speed);
+      flatland_msgs::Vector2 point;
+      flatland_msgs::Vector2 normal;
+      point.x = s.point.x;
+      point.y = s.point.y;
+      normal.x = s.normal.x;
+      normal.y = s.normal.y;
+      collision.contact_positions.push_back(point);
+      collision.contact_normals.push_back(normal);
     }
 
     collisions.collisions.push_back(collision);
@@ -185,17 +156,20 @@ void Bumper::AfterPhysicsStep(const Timekeeper &timekeeper) {
   collisions_publisher_.publish(collisions);
 }
 
-void Bumper::BeginContact(b2Contact *contact) {
+void Bumper::BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
   Entity *other_entity;
-  b2Fixture *this_fixture, *other_fixture;
-  if (!FilterContact(contact, other_entity, this_fixture, other_fixture)) {
+  b2BodyId this_body, other_body;
+  if (!FilterContact(shapeIdA, shapeIdB, other_entity, this_body,
+                     other_body)) {
     return;
   }
 
+  ContactKey key = {shapeIdA, shapeIdB};
+
   // If this is a new contact, add it to the records of alive contacts
-  if (!contact_states_.count(contact)) {
+  if (!contact_states_.count(key)) {
     Body *collision_body =
-        static_cast<Body *>(this_fixture->GetBody()->GetUserData());
+        static_cast<Body *>(b2Body_GetUserData(this_body));
 
     bool ignore = false;
 
@@ -209,75 +183,36 @@ void Bumper::BeginContact(b2Contact *contact) {
 
     // add the body to the record of active contacts
     if (!ignore) {
-      contact_states_[contact] = ContactState();
-      ContactState *c = &contact_states_[contact];
+      contact_states_[key] = ContactState();
+      ContactState *c = &contact_states_[key];
       c->entity_B = other_entity;
-      c->body_B = static_cast<Body *>(other_fixture->GetBody()->GetUserData());
+      c->body_B = static_cast<Body *>(b2Body_GetUserData(other_body));
       c->body_A = collision_body;
-
-      // by convention, Box2D normal goes from fixture A to fixture B, the
-      // sign is used to correct cases when our model isn't fixture A, so that
-      // normal always points from this fixture to other_fixture
-      if (contact->GetFixtureA() == this_fixture) {
-        c->normal_sign = 1;
-      } else {
-        c->normal_sign = -1;
-      }
     }
   }
 }
 
-void Bumper::EndContact(b2Contact *contact) {
-  if (!FilterContact(contact)) return;
+void Bumper::EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
+  if (!FilterContact(shapeIdA, shapeIdB)) return;
 
-  // The contact ended, remove it from the list of contacts
-  if (contact_states_.count(contact)) {
-    contact_states_.erase(contact);
-  } else {
-    // contact is ignored
-    return;
+  ContactKey key = {shapeIdA, shapeIdB};
+  if (contact_states_.count(key)) {
+    contact_states_.erase(key);
   }
 }
 
-void Bumper::PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) {
-  if (!FilterContact(contact)) return;
+void Bumper::OnContactHit(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                           b2Vec2 point, b2Vec2 normal, float approachSpeed) {
+  if (!FilterContact(shapeIdA, shapeIdB)) return;
 
-  ContactState *state;
-  if (contact_states_.count(contact)) {
-    state = &contact_states_[contact];
-  } else {
-    // contact is ignored
-    return;
-  }
+  ContactKey key = {shapeIdA, shapeIdB};
+  if (!contact_states_.count(key)) return;  // ignored contact
 
-  // post solve can be called multiple times per time step due to Box2D's
-  // continuous collision detectopm where Box2D "substeps" in the solver. Each
-  // substep returns the impulse applied to the body at that substep. We cannot
-  // obtain the step size of these sub steps, so we just assumed that the
-  // substeps occurred over evenly subdivided intervals (which is probably
-  // false), and average all the received impulses later on. The points of
-  // collision and normals also change slightly at each substep, we simply
-  // always use ones from the most recent post solve. These results should
-  // only be used to provide a ball park feel of impact strength
-
-  b2WorldManifold m;
-  contact->GetWorldManifold(&m);
-
+  ContactState *state = &contact_states_[key];
   state->num_count++;
-
-  // We take data from both contact points even though there might only be
-  // one point of contact. We sum everything here, and only take the valid
-  // ones later
-  state->sum_normal_impulses[0] += impulse->normalImpulses[0];
-  state->sum_normal_impulses[1] += impulse->normalImpulses[1];
-  state->sum_tangential_impulses[0] += impulse->tangentImpulses[0];
-  state->sum_tangential_impulses[1] += impulse->tangentImpulses[1];
-
-  state->points[0] = m.points[0];
-  state->points[1] = m.points[1];
-
-  state->normal = m.normal;
-  state->normal *= state->normal_sign;
+  state->sum_speed += approachSpeed;
+  state->point = point;
+  state->normal = normal;
 }
 };
 

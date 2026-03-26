@@ -62,11 +62,11 @@ class Model;
  */
 class Joint {
  public:
-  Model *model_;            ///< Model the joint belongs to
-  std::string name_;        ///< Name of the joint
-  b2World *physics_world_;  ///< Box2D physics world
-  Color color_;             ///< Color for visualization
-  b2Joint *physics_joint_;  ///< Box2D physics joint
+  Model *model_;              ///< Model the joint belongs to
+  std::string name_;          ///< Name of the joint
+  b2WorldId physics_world_;   ///< Box2D v3 physics world ID
+  Color color_;               ///< Color for visualization
+  b2JointId physics_joint_;   ///< Box2D v3 physics joint ID
 
   /**
    * @brief Constructor for the joint
@@ -76,8 +76,8 @@ class Joint {
    * @param[in] color Color to visualize the joint
    * @param[in] joint_def Box2D joint definition
    */
-  Joint(b2World *physics_world, Model *model, const std::string &name,
-        const Color &color, const b2JointDef &joint_def);
+  Joint(b2WorldId physics_world, Model *model, const std::string &name,
+        const Color &color, b2JointId joint_id);
   ~Joint();
 
   /// Disallow copying of joints, problematic for constructors and destructors
@@ -112,12 +112,12 @@ class Joint {
   /**
    * @return Get pointer to the Box2D physics joint
    */
-  b2Joint *GetPhysicsJoint();
+  b2JointId GetPhysicsJoint();
 
   /**
-   * @return Get pointer of the Box2D physics world
+   * @return Get the Box2D v3 physics world ID
    */
-  b2World *GetphysicsWorld();
+  b2WorldId GetphysicsWorld();
 
   /**
    * @brief Creates a joint for the given params, throws exceptions upon failure
@@ -127,7 +127,7 @@ class Joint {
    * information
    * @return A new joint as defined by the input data
    */
-  static Joint *MakeJoint(b2World *physics_world, Model *model,
+  static Joint *MakeJoint(b2WorldId physics_world, Model *model,
                           YamlReader &joint_reader);
 
   /**
@@ -147,11 +147,11 @@ class Joint {
    * collide
    * @return A new revolute joint as defined by the input data
    */
-  static Joint *MakeRevoluteJoint(b2World *physics_world, Model *model,
+  static Joint *MakeRevoluteJoint(b2WorldId physics_world, Model *model,
                                   YamlReader &joint_reader,
                                   const std::string &name, const Color &color,
-                                  b2Body *body_A, b2Vec2 anchor_A,
-                                  b2Body *body_B, b2Vec2 anchor_B,
+                                  b2BodyId body_A, b2Vec2 anchor_A,
+                                  b2BodyId body_B, b2Vec2 anchor_B,
                                   bool collide_connected);
 
   /**
@@ -171,10 +171,10 @@ class Joint {
    * collide
    * @return A new weld joint as defined by the input data
    */
-  static Joint *MakeWeldJoint(b2World *physics_world, Model *model,
+  static Joint *MakeWeldJoint(b2WorldId physics_world, Model *model,
                               YamlReader &joint_reader, const std::string &name,
-                              const Color &color, b2Body *body_A,
-                              b2Vec2 anchor_A, b2Body *body_B, b2Vec2 anchor_B,
+                              const Color &color, b2BodyId body_A,
+                              b2Vec2 anchor_A, b2BodyId body_B, b2Vec2 anchor_B,
                               bool collide_connected);
 };
 };      // namespace flatland_server

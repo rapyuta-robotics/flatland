@@ -50,7 +50,7 @@
 
 namespace flatland_server {
 
-ModelBody::ModelBody(b2World *physics_world, CollisionFilterRegistry *cfr,
+ModelBody::ModelBody(b2WorldId physics_world, CollisionFilterRegistry *cfr,
                      Model *model, const std::string &name, const Color &color,
                      const Pose &pose, b2BodyType body_type,
                      const YAML::Node &properties, double linear_damping,
@@ -61,7 +61,7 @@ ModelBody::ModelBody(b2World *physics_world, CollisionFilterRegistry *cfr,
 
 const CollisionFilterRegistry *ModelBody::GetCfr() const { return cfr_; }
 
-ModelBody *ModelBody::MakeBody(b2World *physics_world,
+ModelBody *ModelBody::MakeBody(b2WorldId physics_world,
                                CollisionFilterRegistry *cfr, Model *model,
                                YamlReader &body_reader) {
   std::string name = body_reader.Get<std::string>("name");
@@ -125,20 +125,20 @@ void ModelBody::LoadFootprints(YamlReader &footprints_reader) {
 }
 
 void ModelBody::ConfigFootprintDef(YamlReader &footprint_reader,
-                                   b2FixtureDef &fixture_def) {
+                                   b2ShapeDef &shape_def) {
   // configure physics properties
-  fixture_def.density = footprint_reader.Get<float>("density");
-  fixture_def.friction = footprint_reader.Get<float>("friction", 0.0);
-  fixture_def.restitution = footprint_reader.Get<float>("restitution", 0.0);
+  shape_def.density = footprint_reader.Get<float>("density");
+  shape_def.material.friction = footprint_reader.Get<float>("friction", 0.0);
+  shape_def.material.restitution = footprint_reader.Get<float>("restitution", 0.0);
 
   // config collision properties
-  fixture_def.isSensor = footprint_reader.Get<bool>("sensor", false);
-  fixture_def.filter.groupIndex = 0;
+  shape_def.isSensor = footprint_reader.Get<bool>("sensor", false);
+  shape_def.filter.groupIndex = 0;
 
   std::vector<std::string> layers =
       footprint_reader.GetList<std::string>("layers", {"all"}, -1, -1);
   std::vector<std::string> invalid_layers;
-  fixture_def.filter.categoryBits =
+  shape_def.filter.categoryBits =
       cfr_->GetCategoryBits(layers, &invalid_layers);
 
   if (!invalid_layers.empty()) {
@@ -151,11 +151,9 @@ void ModelBody::ConfigFootprintDef(YamlReader &footprint_reader,
 
   bool collision = footprint_reader.Get<bool>("collision", true);
   if (collision) {
-    // b2d docs: maskBits are "I collide with" bitmask
-    fixture_def.filter.maskBits = fixture_def.filter.categoryBits;
+    shape_def.filter.maskBits = shape_def.filter.categoryBits;
   } else {
-    // "I will collide with nothing"
-    fixture_def.filter.maskBits = 0;
+    shape_def.filter.maskBits = 0;
   }
 }
 
@@ -163,28 +161,26 @@ void ModelBody::LoadCircleFootprint(YamlReader &footprint_reader) {
   Vec2 center = footprint_reader.GetVec2("center", Vec2(0, 0));
   double radius = footprint_reader.Get<double>("radius");
 
-  b2FixtureDef fixture_def;
-  ConfigFootprintDef(footprint_reader, fixture_def);
+  b2ShapeDef shape_def = b2DefaultShapeDef();
+  ConfigFootprintDef(footprint_reader, shape_def);
 
-  b2CircleShape shape;
-  shape.m_p.Set(center.x, center.y);
-  shape.m_radius = radius;
+  b2Circle circle;
+  circle.center = {static_cast<float>(center.x), static_cast<float>(center.y)};
+  circle.radius = static_cast<float>(radius);
 
-  fixture_def.shape = &shape;
-  physics_body_->CreateFixture(&fixture_def);
+  b2CreateCircleShape(physics_body_, &shape_def, &circle);
 }
 
 void ModelBody::LoadPolygonFootprint(YamlReader &footprint_reader) {
   std::vector<b2Vec2> points =
-      footprint_reader.GetList<b2Vec2>("points", 3, b2_maxPolygonVertices);
+      footprint_reader.GetList<b2Vec2>("points", 3, B2_MAX_POLYGON_VERTICES);
 
-  b2FixtureDef fixture_def;
-  ConfigFootprintDef(footprint_reader, fixture_def);
+  b2ShapeDef shape_def = b2DefaultShapeDef();
+  ConfigFootprintDef(footprint_reader, shape_def);
 
-  b2PolygonShape shape;
-  shape.Set(points.data(), points.size());
+  b2Hull hull = b2ComputeHull(points.data(), static_cast<int>(points.size()));
+  b2Polygon polygon = b2MakePolygon(&hull, 0.0f);
 
-  fixture_def.shape = &shape;
-  physics_body_->CreateFixture(&fixture_def);
+  b2CreatePolygonShape(physics_body_, &shape_def, &polygon);
 }
 };
