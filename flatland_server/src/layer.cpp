@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/exceptions.h>
 #include <flatland_server/geometry.h>
@@ -68,7 +68,7 @@
 
 namespace flatland_server {
 
-Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer::Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
              const Pose &origin, const cv::Mat &bitmap, double occupied_thresh,
              double resolution, const YAML::Node &properties)
@@ -82,7 +82,7 @@ Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
   LoadFromBitmap(bitmap, occupied_thresh, resolution);
 }
 
-Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer::Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
              const Pose &origin, const std::vector<LineSegment> &line_segments,
              double scale, const YAML::Node &properties)
@@ -96,21 +96,21 @@ Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
   uint16_t category_bits = cfr_->GetCategoryBits(names_);
 
   for (const auto &line_segment : line_segments) {
-    b2EdgeShape edge;
-    edge.Set(line_segment.start.Box2D(), line_segment.end.Box2D());
-    edge.m_vertex1 *= scale;
-    edge.m_vertex2 *= scale;
+    b2Vec2 sv = line_segment.start.Box2D();
+    b2Vec2 ev = line_segment.end.Box2D();
+    sv.x *= static_cast<float>(scale); sv.y *= static_cast<float>(scale);
+    ev.x *= static_cast<float>(scale); ev.y *= static_cast<float>(scale);
 
-    b2FixtureDef fixture_def;
-    fixture_def.shape = &edge;
-    fixture_def.filter.categoryBits = category_bits;
-    fixture_def.filter.maskBits = fixture_def.filter.categoryBits;
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    shape_def.filter.categoryBits = category_bits;
+    shape_def.filter.maskBits = category_bits;
+    b2Segment seg = {sv, ev};
     // todo: add material information
-    body_->physics_body_->CreateFixture(&fixture_def);
+    b2CreateSegmentShape(body_->physics_body_, &shape_def, &seg);
   }
 }
 
-Layer::Layer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer::Layer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
              const std::vector<std::string> &names, const Color &color,
              const YAML::Node &properties)
     : Entity(physics_world, names[0]),
@@ -125,7 +125,7 @@ const std::vector<std::string> &Layer::GetNames() const { return names_; }
 const CollisionFilterRegistry *Layer::GetCfr() const { return cfr_; }
 Body *Layer::GetBody() { return body_; }
 
-Layer *Layer::MakeLayer(b2World *physics_world, CollisionFilterRegistry *cfr,
+Layer *Layer::MakeLayer(b2WorldId physics_world, CollisionFilterRegistry *cfr,
                         const std::string &map_path,
                         const std::vector<std::string> &names,
                         const Color &color, const YAML::Node &properties) {
@@ -221,68 +221,94 @@ void Layer::LoadFromBitmap(const cv::Mat &bitmap, double occupied_thresh,
                            double resolution) {
   uint16_t category_bits = cfr_->GetCategoryBits(names_);
 
-  uint32_t edges_added = 0;
-
-  auto add_poly = [&](std::vector<cv::Point2f>& poly) {
-    b2ChainShape polygon_chain;
+  auto add_edge = [&](double x1, double y1, double x2, double y2) {
     double rows = bitmap.rows;
     double res = resolution;
 
-    std::vector<b2Vec2> poly_b2;
-    poly_b2.reserve(poly.size());
-    for(auto& p : poly) {
-      poly_b2.emplace_back(res * p.x, res * (rows - p.y));
-    }
+    b2Vec2 v1 = {static_cast<float>(res * x1), static_cast<float>(res * (rows - y1))};
+    b2Vec2 v2 = {static_cast<float>(res * x2), static_cast<float>(res * (rows - y2))};
+    b2Segment seg = {v1, v2};
 
-    polygon_chain.CreateLoop(&poly_b2.front(), poly_b2.size());
-
-    b2FixtureDef fixture_def;
-    fixture_def.shape = &polygon_chain;
-    fixture_def.filter.categoryBits = category_bits;
-    fixture_def.filter.maskBits = fixture_def.filter.categoryBits;
-    body_->physics_body_->CreateFixture(&fixture_def);
-
-    edges_added += poly.size();
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    shape_def.filter.categoryBits = category_bits;
+    shape_def.filter.maskBits = category_bits;
+    b2CreateSegmentShape(body_->physics_body_, &shape_def, &seg);
   };
 
   cv::Mat padded_map, obstacle_map;
 
   // thresholds the map, values between the occupied threshold and 1.0 are
   // considered to be occupied
-  cv::inRange(bitmap, occupied_thresh, 1.0, obstacle_map); 
+  cv::inRange(bitmap, occupied_thresh, 1.0, obstacle_map);
 
-  // simplify_map rosparam: 0=None, 1=moderate, 2=maximum simplification of map polygon outlines
-  int simplify = 0;
-  ros::param::param<int>("simplify_map", simplify, 0);
-  
-  std::vector<std::vector<cv::Point>> vectors_outline;
-  cv::Mat obstacle_map_open;
-  if (simplify >= 2) {
-    int open_kernel_size = 3;  // 0.15m at 5cm pixel resolution
-    cv::Mat kernel = cv::getStructuringElement( cv::MORPH_ELLIPSE, {open_kernel_size*2+1, open_kernel_size*2+1});
-    cv::morphologyEx(obstacle_map, obstacle_map_open, cv::MORPH_OPEN, kernel); 
-  } else {
-    obstacle_map_open = obstacle_map.clone();
-  }
+  // pad the top and bottom of the map each with an empty row (255=white). This
+  // helps to look at the transition from one row of pixel to another
+  cv::copyMakeBorder(obstacle_map, padded_map, 1, 1, 0, 0, cv::BORDER_CONSTANT,
+                     255);
 
-  cv::findContours(obstacle_map_open, vectors_outline, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
-  for (auto& polygon : vectors_outline) {
-    std::vector<cv::Point2f> polygon2f;  // create a double rep. for RDP accuracy
-    std::transform(polygon.begin(), polygon.end(), std::back_inserter(polygon2f),
-               [](const cv::Point& p) { return (cv::Point2f)p; });
-    std::vector<cv::Point2f>& poly_to_use = polygon2f;
+  // loop through all the rows, looking at 2 at once
+  for (int i = 0; i < padded_map.rows - 1; i++) {
+    cv::Mat row1 = padded_map.row(i);
+    cv::Mat row2 = padded_map.row(i + 1);
+    cv::Mat diff;
 
-    
-    if (simplify >= 1) {
-      std::vector<cv::Point2f> polygon_rdp;
-      cv::approxPolyDP(polygon2f, polygon_rdp, 1.0, true);  // RDP reduction
-      if (polygon_rdp.size()>4) poly_to_use = polygon_rdp;
+    // if the two row are the same value, there is no edge
+    // if the two rows are not the same value, there is an edge
+    // result is still binary, either 255 or 0
+    cv::absdiff(row1, row2, diff);
+
+    int start = 0;
+    bool started = false;
+
+    // find all the walls, put the connected walls as a single line segment
+    for (unsigned int j = 0; j <= diff.total(); j++) {
+      bool edge_exists = false;
+      if (j < diff.total()) {
+        edge_exists = diff.at<uint8_t>(0, j);  // 255 maps to true
+      }
+
+      if (edge_exists && !started) {
+        start = j;
+        started = true;
+      } else if (started && !edge_exists) {
+        add_edge(start, i, j, i);
+
+        started = false;
+      }
     }
-
-    add_poly(poly_to_use);
   }
 
-  ROS_INFO_NAMED("Layer", "added %d line segments", edges_added);
+  // pad the left and right of the map each with an empty column (255).
+  cv::copyMakeBorder(obstacle_map, padded_map, 0, 0, 1, 1, cv::BORDER_CONSTANT,
+                     255);
+
+  // loop through all the columns, looking at 2 at once
+  for (int i = 0; i < padded_map.cols - 1; i++) {
+    cv::Mat col1 = padded_map.col(i);
+    cv::Mat col2 = padded_map.col(i + 1);
+    cv::Mat diff;
+
+    cv::absdiff(col1, col2, diff);
+
+    int start = 0;
+    bool started = false;
+
+    for (unsigned int j = 0; j <= diff.total(); j++) {
+      bool edge_exists = false;
+      if (j < diff.total()) {
+        edge_exists = diff.at<uint8_t>(j, 0);
+      }
+
+      if (edge_exists && !started) {
+        start = j;
+        started = true;
+      } else if (started && !edge_exists) {
+        add_edge(i, start, i, j);
+
+        started = false;
+      }
+    }
+  }
 }
 
 void Layer::DebugVisualize() const {
@@ -307,9 +333,10 @@ void Layer::DebugOutput() const {
   uint16_t category_bits = cfr_->GetCategoryBits(names_);
 
   ROS_DEBUG_NAMED("Layer",
-                  "Layer %p: physics_world(%p) name(%s) names(%s) "
+                  "Layer %p: physics_world(id=%d,%d) name(%s) names(%s) "
                   "category_bits(0x%X)",
-                  this, physics_world_, name_.c_str(), names.c_str(),
+                  this, physics_world_.index1, physics_world_.generation,
+                  name_.c_str(), names.c_str(),
                   category_bits);
 
   if (body_ != nullptr) {

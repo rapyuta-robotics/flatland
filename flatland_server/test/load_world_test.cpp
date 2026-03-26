@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/entity.h>
 #include <flatland_server/exceptions.h>
@@ -62,7 +62,7 @@ using namespace flatland_server;
 class LoadWorldTest : public ::testing::Test {
  protected:
   boost::filesystem::path this_file_dir;
-  boost::filesystem::path world_yaml_path;
+  boost::filesystem::path world_yaml;
   World *w;
 
   void SetUp() override {
@@ -78,16 +78,13 @@ class LoadWorldTest : public ::testing::Test {
 
   // to test that the world instantiation will fail, and the exception
   // message matches the given regex string
-  void test_yaml_fail(const std::string &regex_str) {
+  void test_yaml_fail(std::string regex_str) {
     // do a regex match against error messages
     std::cmatch match;
     std::regex regex(regex_str);
 
     try {
-      w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
-                           world_yaml_path.string(),
-                           world_yaml_path.string() + "world_plugins.yaml");
-      w->LoadWorldEntities();
+      w = World::MakeWorld(world_yaml.string());
       ADD_FAILURE() << "Expected an exception, but none were raised";
     } catch (const Exception &e) {
       EXPECT_TRUE(std::regex_match(e.what(), match, regex))
@@ -106,19 +103,19 @@ class LoadWorldTest : public ::testing::Test {
   }
 
   // return the id if found, -1 otherwise
-  int does_edge_exist(const b2EdgeShape &edge,
+  int does_edge_exist(const b2Segment &edge,
                       const std::vector<std::pair<b2Vec2, b2Vec2>> &edges) {
     for (unsigned int i = 0; i < edges.size(); i++) {
       auto e = edges[i];
-      if ((float_cmp(edge.m_vertex1.x, e.first.x) &&
-           float_cmp(edge.m_vertex1.y, e.first.y) &&
-           float_cmp(edge.m_vertex2.x, e.second.x) &&
-           float_cmp(edge.m_vertex2.y, e.second.y)) ||
+      if ((float_cmp(edge.point1.x, e.first.x) &&
+           float_cmp(edge.point1.y, e.first.y) &&
+           float_cmp(edge.point2.x, e.second.x) &&
+           float_cmp(edge.point2.y, e.second.y)) ||
 
-          (float_cmp(edge.m_vertex1.x, e.second.x) &&
-           float_cmp(edge.m_vertex1.y, e.second.y) &&
-           float_cmp(edge.m_vertex2.x, e.first.x) &&
-           float_cmp(edge.m_vertex2.y, e.first.y))) {
+          (float_cmp(edge.point1.x, e.second.x) &&
+           float_cmp(edge.point1.y, e.second.y) &&
+           float_cmp(edge.point2.x, e.first.x) &&
+           float_cmp(edge.point2.y, e.first.y))) {
         return i;
       }
     }
@@ -129,7 +126,7 @@ class LoadWorldTest : public ::testing::Test {
   // checks if one list of edges completely matches the content
   // of the other list
   bool do_edges_exactly_match(
-      const std::vector<b2EdgeShape> &edges1,
+      const std::vector<b2Segment> &edges1,
       const std::vector<std::pair<b2Vec2, b2Vec2>> &edges2) {
     std::vector<std::pair<b2Vec2, b2Vec2>> edges_cpy = edges2;
     for (unsigned int i = 0; i < edges1.size(); i++) {
@@ -137,8 +134,6 @@ class LoadWorldTest : public ::testing::Test {
       int ret_idx = does_edge_exist(e, edges_cpy);
 
       if (ret_idx < 0) {
-        b2Vec2 v1_tf = e.m_vertex1;
-        b2Vec2 v2_tf = e.m_vertex2;
         return false;
       }
 
@@ -165,8 +160,9 @@ class LoadWorldTest : public ::testing::Test {
               const std::array<double, 3> &pose,
               const std::array<double, 4> &color, double linear_damping,
               double angular_damping) {
-    b2Vec2 t = body->physics_body_->GetPosition();
-    double a = body->physics_body_->GetAngle();
+    b2BodyId bid = body->physics_body_;
+    b2Vec2 t = b2Body_GetPosition(bid);
+    double a = b2Rot_GetAngle(b2Body_GetRotation(bid));
 
     if (name != body->name_) {
       printf("Name Actual:%s != Expected:%s\n", body->name_.c_str(),
@@ -174,17 +170,9 @@ class LoadWorldTest : public ::testing::Test {
       return false;
     }
 
-    if (type != body->physics_body_->GetType()) {
-      /*
-      enum b2BodyType
-      {
-        b2_staticBody = 0,
-        b2_kinematicBody,
-        b2_dynamicBody
-      };
-      */
+    if (type != b2Body_GetType(bid)) {
       printf("Body type Actual:%d != Expected:%d\n",
-             body->physics_body_->GetType(), type);
+             b2Body_GetType(bid), type);
       return false;
     }
 
@@ -199,69 +187,49 @@ class LoadWorldTest : public ::testing::Test {
       return false;
     }
 
-    if (!float_cmp(linear_damping, body->physics_body_->GetLinearDamping())) {
+    if (!float_cmp(linear_damping, b2Body_GetLinearDamping(bid))) {
       printf("Linear Damping Actual:%f != Expected:%f\n",
-             body->physics_body_->GetLinearDamping(), linear_damping);
+             b2Body_GetLinearDamping(bid), linear_damping);
       return false;
     }
 
-    if (!float_cmp(angular_damping, body->physics_body_->GetAngularDamping())) {
+    if (!float_cmp(angular_damping, b2Body_GetAngularDamping(bid))) {
       printf("Angular Damping Actual %f != Expected:%f\n",
-             body->physics_body_->GetAngularDamping(), angular_damping);
+             b2Body_GetAngularDamping(bid), angular_damping);
       return false;
     }
 
     return true;
   }
 
-  bool CircleEq(b2Fixture *f, double x, double y, double r) {
-    if (f->GetShape()->GetType() != b2Shape::e_circle) {
-      /*
-      enum Type
-      {
-        e_circle = 0,
-        e_edge = 1,
-        e_polygon = 2,
-        e_chain = 3,
-        e_typeCount = 4
-      };
-      */
-      printf("Shape is not of type b2Shape::e_circle, Actual=%d\n",
-             f->GetShape()->GetType());
+  bool CircleEq(b2ShapeId sid, double x, double y, double r) {
+    if (b2Shape_GetType(sid) != b2_circleShape) {
+      printf("Shape is not of type b2_circleShape, Actual=%d\n",
+             b2Shape_GetType(sid));
       return false;
     }
 
-    b2CircleShape *s = dynamic_cast<b2CircleShape *>(f->GetShape());
+    b2Circle s = b2Shape_GetCircle(sid);
 
-    if (!float_cmp(r, s->m_radius) || !float_cmp(x, s->m_p.x) ||
-        !float_cmp(y, s->m_p.y)) {
-      printf("Actual:[x=%f,y=%f,r=%f] != Expected:[%f,%f,%f] \n", s->m_p.x,
-             s->m_p.y, s->m_radius, x, y, r);
+    if (!float_cmp(r, s.radius) || !float_cmp(x, s.center.x) ||
+        !float_cmp(y, s.center.y)) {
+      printf("Actual:[x=%f,y=%f,r=%f] != Expected:[%f,%f,%f] \n", s.center.x,
+             s.center.y, s.radius, x, y, r);
       return false;
     }
     return true;
   }
 
-  bool PolygonEq(b2Fixture *f, std::vector<std::pair<double, double>> points) {
-    if (f->GetShape()->GetType() != b2Shape::e_polygon) {
-      /*
-      enum Type
-      {
-        e_circle = 0,
-        e_edge = 1,
-        e_polygon = 2,
-        e_chain = 3,
-        e_typeCount = 4
-      };
-      */
-      printf("Shape is not of type b2Shape::e_polygon, Actual=%d\n",
-             f->GetShape()->GetType());
+  bool PolygonEq(b2ShapeId sid, std::vector<std::pair<double, double>> points) {
+    if (b2Shape_GetType(sid) != b2_polygonShape) {
+      printf("Shape is not of type b2_polygonShape, Actual=%d\n",
+             b2Shape_GetType(sid));
       return false;
     }
 
-    b2PolygonShape *s = dynamic_cast<b2PolygonShape *>(f->GetShape());
-    int cnt = s->m_count;
-    if (cnt != points.size()) {
+    b2Polygon s = b2Shape_GetPolygon(sid);
+    int cnt = s.count;
+    if (cnt != (int)points.size()) {
       printf("Number of points Actual:%d != Expected:%lu\n", cnt,
              points.size());
       return false;
@@ -269,97 +237,92 @@ class LoadWorldTest : public ::testing::Test {
 
     auto pts = points;
 
-    for (unsigned int i = 0; i < cnt; i++) {
-      const b2Vec2 p = s->m_vertices[i];
+    for (int i = 0; i < cnt; i++) {
+      const b2Vec2 p = s.vertices[i];
 
       bool found_match = false;
       int j;
-      for (j = 0; j < pts.size(); j++) {
-        if (!float_cmp(p.x, points[i].first) ||
-            !float_cmp(p.y, points[i].second)) {
+      for (j = 0; j < (int)pts.size(); j++) {
+        if (float_cmp(p.x, pts[j].first) && float_cmp(p.y, pts[j].second)) {
           found_match = true;
           break;
         }
       }
 
       if (!found_match) {
-        // cannot find a matching point, print the expected and actual points
         printf("Actual: [");
         for (int k = 0; k < cnt; k++) {
-          printf("[%f,%f],", s->m_vertices[k].x, s->m_vertices[k].y);
+          printf("[%f,%f],", s.vertices[k].x, s.vertices[k].y);
         }
-
         printf("] != Expected: [");
-        for (int k = 0; k < points.size(); k++) {
+        for (int k = 0; k < (int)points.size(); k++) {
           printf("[%f,%f],", points[k].first, points[k].second);
         }
         printf("]\n");
-
         return false;
       }
 
       pts.erase(pts.begin() + j);
     }
 
-    if (pts.size() == 0) {
-      return true;
-    } else {
-      return false;
-    }
+    return pts.empty();
   }
 
-  std::vector<b2Fixture *> GetBodyFixtures(Body *body) {
-    std::vector<b2Fixture *> fixtures;
-
-    b2Body *b = body->physics_body_;
-    for (b2Fixture *f = b->GetFixtureList(); f; f = f->GetNext()) {
-      fixtures.push_back(f);
-    }
-
-    std::reverse(fixtures.begin(), fixtures.end());
-
-    return fixtures;
+  std::vector<b2ShapeId> GetBodyShapes(Body *body) {
+    b2BodyId bid = body->physics_body_;
+    int count = b2Body_GetShapeCount(bid);
+    std::vector<b2ShapeId> shapes(count);
+    b2Body_GetShapes(bid, shapes.data(), count);
+    // reverse to match original fixture-list order (box2d v2 returned in
+    // reverse creation order)
+    std::reverse(shapes.begin(), shapes.end());
+    return shapes;
   }
 
-  bool FixtureEq(b2Fixture *f, bool is_sensor, int group_index,
+  bool FixtureEq(b2ShapeId sid, bool is_sensor, int group_index,
                  uint16_t category_bits, uint16_t mask_bits, double density,
                  double friction, double restitution) {
-    if (f->IsSensor() != is_sensor) {
-      printf("is_sensor Actual:%d != Expected:%d\n", f->IsSensor(), is_sensor);
+    if (b2Shape_IsSensor(sid) != is_sensor) {
+      printf("is_sensor Actual:%d != Expected:%d\n", b2Shape_IsSensor(sid),
+             is_sensor);
       return false;
     }
 
-    if (f->GetFilterData().groupIndex != group_index) {
-      printf("group_index Actual:%d != Expected:%d\n",
-             f->GetFilterData().groupIndex, group_index);
+    b2Filter filter = b2Shape_GetFilter(sid);
+
+    if (filter.groupIndex != group_index) {
+      printf("group_index Actual:%d != Expected:%d\n", filter.groupIndex,
+             group_index);
       return false;
     }
 
-    if (f->GetFilterData().categoryBits != category_bits) {
+    if (filter.categoryBits != category_bits) {
       printf("category_bits Actual:0x%X != Expected:0x%X\n",
-             f->GetFilterData().categoryBits, category_bits);
+             filter.categoryBits, category_bits);
       return false;
     }
 
-    if (f->GetFilterData().maskBits != mask_bits) {
-      printf("mask_bits Actual:0x%X != Expected:0x%X\n",
-             f->GetFilterData().maskBits, mask_bits);
+    if (filter.maskBits != mask_bits) {
+      printf("mask_bits Actual:0x%X != Expected:0x%X\n", filter.maskBits,
+             mask_bits);
       return false;
     }
 
-    if (!float_cmp(f->GetDensity(), density)) {
-      printf("density Actual:%f != Expected:%f\n", f->GetDensity(), density);
+    if (!float_cmp(b2Shape_GetDensity(sid), density)) {
+      printf("density Actual:%f != Expected:%f\n", b2Shape_GetDensity(sid),
+             density);
       return false;
     }
 
-    if (!float_cmp(f->GetFriction(), friction)) {
-      printf("friction Actual:%f != Expected:%f\n", f->GetFriction(), friction);
+    if (!float_cmp(b2Shape_GetFriction(sid), friction)) {
+      printf("friction Actual:%f != Expected:%f\n", b2Shape_GetFriction(sid),
+             friction);
       return false;
     }
 
-    if (!float_cmp(f->GetRestitution(), restitution)) {
-      printf("restitution Actual:%f != Expected:%f\n", f->GetRestitution(),
-             restitution);
+    if (!float_cmp(b2Shape_GetRestitution(sid), restitution)) {
+      printf("restitution Actual:%f != Expected:%f\n",
+             b2Shape_GetRestitution(sid), restitution);
       return false;
     }
 
@@ -370,7 +333,7 @@ class LoadWorldTest : public ::testing::Test {
                const std::array<double, 4> &color, Body *body_A,
                const std::array<double, 2> &anchor_A, Body *body_B,
                const std::array<double, 2> &anchor_B, bool collide_connected) {
-    b2Joint *j = joint->physics_joint_;
+    b2JointId jid = joint->physics_joint_;
 
     if (name != joint->name_) {
       printf("Name Actual:%s != Expected:%s\n", joint->name_.c_str(),
@@ -382,22 +345,29 @@ class LoadWorldTest : public ::testing::Test {
       return false;
     }
 
-    if (j->GetBodyA() != body_A->physics_body_) {
-      printf("BodyA ptr Actual %p != Expected:%p\n",
-             joint->physics_joint_->GetBodyA(), body_A->physics_body_);
+    b2BodyId jbodyA = b2Joint_GetBodyA(jid);
+    b2BodyId jbodyB = b2Joint_GetBodyB(jid);
+
+    if (!B2_ID_EQUALS(jbodyA, body_A->physics_body_)) {
+      printf("BodyA mismatch\n");
       return false;
     }
 
-    if (j->GetBodyB() != body_B->physics_body_) {
-      printf("BodyB ptr Actual %p != Expected:%p\n", j->GetBodyB(),
-             body_B->physics_body_);
+    if (!B2_ID_EQUALS(jbodyB, body_B->physics_body_)) {
+      printf("BodyB mismatch\n");
       return false;
     }
 
-    // GetAnchor returns world coordinates, we want to verify against
-    // local coordinates
-    b2Vec2 local_anchor_A = j->GetAnchorA() - j->GetBodyA()->GetPosition();
-    b2Vec2 local_anchor_B = j->GetAnchorB() - j->GetBodyB()->GetPosition();
+    // Get local anchors (type-specific)
+    b2Vec2 local_anchor_A, local_anchor_B;
+    b2JointType jtype = b2Joint_GetType(jid);
+    if (jtype == b2_revoluteJoint) {
+      local_anchor_A = b2RevoluteJoint_GetLocalAnchorA(jid);
+      local_anchor_B = b2RevoluteJoint_GetLocalAnchorB(jid);
+    } else {
+      local_anchor_A = b2WeldJoint_GetLocalAnchorA(jid);
+      local_anchor_B = b2WeldJoint_GetLocalAnchorB(jid);
+    }
 
     if (!float_cmp(local_anchor_A.x, anchor_A[0]) ||
         !float_cmp(local_anchor_A.y, anchor_A[1])) {
@@ -413,9 +383,9 @@ class LoadWorldTest : public ::testing::Test {
       return false;
     }
 
-    if (collide_connected != j->GetCollideConnected()) {
+    if (collide_connected != b2Joint_GetCollideConnected(jid)) {
       printf("Collide connected Actual:%d != Expected:%d\n",
-             j->GetCollideConnected(), collide_connected);
+             b2Joint_GetCollideConnected(jid), collide_connected);
       return false;
     }
 
@@ -423,44 +393,29 @@ class LoadWorldTest : public ::testing::Test {
   }
 
   bool WeldEq(Joint *joint, double angle, double freq, double damping) {
-    b2WeldJoint *j = dynamic_cast<b2WeldJoint *>(joint->physics_joint_);
+    b2JointId jid = joint->physics_joint_;
 
-    if (j->GetType() != e_weldJoint) {
-      /*
-      enum b2JointType
-      {
-        e_unknownJoint, --> C++ should defaults initialize at zero?
-        e_revoluteJoint,
-        e_prismaticJoint,
-        e_distanceJoint,
-        e_pulleyJoint,
-        e_mouseJoint,
-        e_gearJoint,
-        e_wheelJoint,
-        e_weldJoint,
-        e_frictionJoint,
-        e_ropeJoint,
-        e_motorJoint
-      };
-      */
-      printf("Joint type Actual:%d != Expected:%d(weld joint)\n", j->GetType(),
-             e_weldJoint);
+    if (b2Joint_GetType(jid) != b2_weldJoint) {
+      printf("Joint type Actual:%d != Expected:%d(weld joint)\n",
+             b2Joint_GetType(jid), b2_weldJoint);
       return false;
     }
 
-    if (!float_cmp(angle, j->GetReferenceAngle())) {
-      printf("Angle Actual:%f != Expected:%f\n", angle, j->GetReferenceAngle());
+    float ref_angle = b2WeldJoint_GetReferenceAngle(jid);
+    if (!float_cmp(angle, ref_angle)) {
+      printf("Angle Actual:%f != Expected:%f\n", ref_angle, angle);
       return false;
     }
 
-    if (!float_cmp(freq, j->GetFrequency())) {
-      printf("Frequency Actual:%f != Expected:%f\n", freq, j->GetFrequency());
+    float hertz = b2WeldJoint_GetAngularHertz(jid);
+    if (!float_cmp(freq, hertz)) {
+      printf("Frequency Actual:%f != Expected:%f\n", hertz, freq);
       return false;
     }
 
-    if (!float_cmp(damping, j->GetDampingRatio())) {
-      printf("Damping Actual:%f != Expected:%f\n", damping,
-             j->GetDampingRatio());
+    float damp = b2WeldJoint_GetAngularDampingRatio(jid);
+    if (!float_cmp(damping, damp)) {
+      printf("Damping Actual:%f != Expected:%f\n", damp, damping);
       return false;
     }
 
@@ -469,42 +424,29 @@ class LoadWorldTest : public ::testing::Test {
 
   bool RevoluteEq(Joint *joint, bool is_limit_enabled,
                   const std::array<double, 2> limits) {
-    b2RevoluteJoint *j = dynamic_cast<b2RevoluteJoint *>(joint->physics_joint_);
+    b2JointId jid = joint->physics_joint_;
 
-    if (j->GetType() != e_revoluteJoint) {
-      /*
-      enum b2JointType
-      {
-        e_unknownJoint, --> C++ defaults initialize at zero?
-        e_revoluteJoint,
-        e_prismaticJoint,
-        e_distanceJoint,
-        e_pulleyJoint,
-        e_mouseJoint,
-        e_gearJoint,
-        e_wheelJoint,
-        e_weldJoint,
-        e_frictionJoint,
-        e_ropeJoint,
-        e_motorJoint
-      };
-      */
+    if (b2Joint_GetType(jid) != b2_revoluteJoint) {
       printf("Joint type Actual:%d != Expected:%d(revolute joint)\n",
-             j->GetType(), e_revoluteJoint);
+             b2Joint_GetType(jid), b2_revoluteJoint);
       return false;
     }
 
-    if (is_limit_enabled != j->IsLimitEnabled()) {
-      printf("Limits enabled Actual:%d != Expected:%d\n", is_limit_enabled,
-             j->IsLimitEnabled());
+    bool limit_enabled = b2RevoluteJoint_IsLimitEnabled(jid);
+    if (is_limit_enabled != limit_enabled) {
+      printf("Limits enabled Actual:%d != Expected:%d\n", limit_enabled,
+             is_limit_enabled);
       return false;
     }
 
-    if (is_limit_enabled && (!float_cmp(limits[0], j->GetLowerLimit()) ||
-                             !float_cmp(limits[1], j->GetUpperLimit()))) {
-      printf("Limits Actual:[%f,%f] != Expected:[%f,%f]\n", j->GetLowerLimit(),
-             j->GetLowerLimit(), limits[0], limits[1]);
-      return false;
+    if (is_limit_enabled) {
+      float lower = b2RevoluteJoint_GetLowerLimit(jid);
+      float upper = b2RevoluteJoint_GetUpperLimit(jid);
+      if (!float_cmp(limits[0], lower) || !float_cmp(limits[1], upper)) {
+        printf("Limits Actual:[%f,%f] != Expected:[%f,%f]\n", lower, upper,
+               limits[0], limits[1]);
+        return false;
+      }
     }
 
     return true;
@@ -517,11 +459,9 @@ class LoadWorldTest : public ::testing::Test {
  * correct after instantiation
  */
 TEST_F(LoadWorldTest, simple_test_A) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/simple_test_A/");
-  w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
-                       world_yaml_path.string(),
-                       world_yaml_path.string() + "world_plugins.yaml");
-  w->LoadWorldEntities();
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/simple_test_A/world.yaml");
+  w = World::MakeWorld(world_yaml.string());
 
   EXPECT_EQ(w->physics_velocity_iterations_, 11);
   EXPECT_EQ(w->physics_position_iterations_, 12);
@@ -579,16 +519,25 @@ TEST_F(LoadWorldTest, simple_test_A) {
       std::pair<b2Vec2, b2Vec2>(b2Vec2(0.20, 0.20), b2Vec2(0.20, 0.05)),
       std::pair<b2Vec2, b2Vec2>(b2Vec2(0.25, 0.25), b2Vec2(0.25, 0.00))};
 
-  std::vector<b2EdgeShape> layer0_edges;
-  for (b2Fixture *f = w->layers_[0]->body_->physics_body_->GetFixtureList(); f;
-       f = f->GetNext()) {
-    b2EdgeShape e = *(dynamic_cast<b2EdgeShape *>(f->GetShape()));
-    layer0_edges.push_back(e);
+  auto collect_layer_segments = [&](Body* body, uint32_t expected_cat,
+                                    uint32_t expected_mask) {
+    std::vector<b2Segment> segs;
+    int count = b2Body_GetShapeCount(body->physics_body_);
+    std::vector<b2ShapeId> sids(count);
+    b2Body_GetShapes(body->physics_body_, sids.data(), count);
+    for (auto s : sids) {
+      if (b2Shape_GetType(s) == b2_segmentShape) {
+        segs.push_back(b2Shape_GetSegment(s));
+        b2Filter f = b2Shape_GetFilter(s);
+        EXPECT_EQ(f.categoryBits, expected_cat);
+        EXPECT_EQ(f.maskBits, expected_mask);
+      }
+    }
+    return segs;
+  };
 
-    // check that collision groups are correctly assigned
-    ASSERT_EQ(f->GetFilterData().categoryBits, 0x1);
-    ASSERT_EQ(f->GetFilterData().maskBits, 0x1);
-  }
+  std::vector<b2Segment> layer0_edges =
+      collect_layer_segments(w->layers_[0]->body_, 0x1, 0x1);
   EXPECT_EQ(layer0_edges.size(), layer0_expected_edges.size());
   EXPECT_TRUE(do_edges_exactly_match(layer0_edges, layer0_expected_edges));
 
@@ -612,16 +561,8 @@ TEST_F(LoadWorldTest, simple_test_A) {
       std::pair<b2Vec2, b2Vec2>(b2Vec2(7.5, 1.5), b2Vec2(7.5, 0.0)),
       std::pair<b2Vec2, b2Vec2>(b2Vec2(6.0, 0.0), b2Vec2(7.5, 0.0))};
 
-  std::vector<b2EdgeShape> layer1_edges;
-  for (b2Fixture *f = w->layers_[1]->body_->physics_body_->GetFixtureList(); f;
-       f = f->GetNext()) {
-    b2EdgeShape e = *(dynamic_cast<b2EdgeShape *>(f->GetShape()));
-    layer1_edges.push_back(e);
-
-    // check that collision groups are correctly assigned
-    ASSERT_EQ(f->GetFilterData().categoryBits, 0b1110);
-    ASSERT_EQ(f->GetFilterData().maskBits, 0b1110);
-  }
+  std::vector<b2Segment> layer1_edges =
+      collect_layer_segments(w->layers_[1]->body_, 0b1110, 0b1110);
   EXPECT_EQ(layer1_edges.size(), layer1_expected_edges.size());
   EXPECT_TRUE(do_edges_exactly_match(layer1_edges, layer1_expected_edges));
 
@@ -631,16 +572,8 @@ TEST_F(LoadWorldTest, simple_test_A) {
       std::pair<b2Vec2, b2Vec2>(b2Vec2(-0.1, -0.2), b2Vec2(-0.3, -0.4)),
       std::pair<b2Vec2, b2Vec2>(b2Vec2(0.01, 0.02), b2Vec2(0.03, 0.04))};
 
-  std::vector<b2EdgeShape> layer2_edges;
-  for (b2Fixture *f = w->layers_[2]->body_->physics_body_->GetFixtureList(); f;
-       f = f->GetNext()) {
-    b2EdgeShape e = *(dynamic_cast<b2EdgeShape *>(f->GetShape()));
-    layer2_edges.push_back(e);
-
-    // check that collision groups are correctly assigned
-    ASSERT_EQ(f->GetFilterData().categoryBits, 0b10000);
-    ASSERT_EQ(f->GetFilterData().maskBits, 0b10000);
-  }
+  std::vector<b2Segment> layer2_edges =
+      collect_layer_segments(w->layers_[2]->body_, 0b10000, 0b10000);
   EXPECT_EQ(layer2_edges.size(), layer2_expected_edges.size());
   EXPECT_TRUE(do_edges_exactly_match(layer2_edges, layer2_expected_edges));
 
@@ -655,47 +588,47 @@ TEST_F(LoadWorldTest, simple_test_A) {
   // check model 0 body 0
   EXPECT_TRUE(BodyEq(m0->bodies_[0], "base", b2_dynamicBody, {0, 0, 0},
                      {1, 1, 0, 0.25}, 0.1, 0.125));
-  auto fs = GetBodyFixtures(m0->bodies_[0]);
-  ASSERT_EQ(fs.size(), 2);
-  EXPECT_TRUE(FixtureEq(fs[0], false, 0, 0xFFFF, 0xFFFF, 0, 0, 0));
-  EXPECT_TRUE(CircleEq(fs[0], 0, 0, 1.777));
-  EXPECT_TRUE(FixtureEq(fs[1], false, 0, 0xFFFF, 0xFFFF, 982.24, 0.59, 0.234));
+  auto shapes = GetBodyShapes(m0->bodies_[0]);
+  ASSERT_EQ(shapes.size(), 2);
+  EXPECT_TRUE(FixtureEq(shapes[0], false, 0, 0xFFFF, 0xFFFF, 0, 0, 0));
+  EXPECT_TRUE(CircleEq(shapes[0], 0, 0, 1.777));
+  EXPECT_TRUE(FixtureEq(shapes[1], false, 0, 0xFFFF, 0xFFFF, 982.24, 0.59, 0.234));
   EXPECT_TRUE(
-      PolygonEq(fs[1], {{-0.1, 0.1}, {-0.1, -0.1}, {0.1, -0.1}, {0.1, 0.1}}));
+      PolygonEq(shapes[1], {{-0.1, 0.1}, {-0.1, -0.1}, {0.1, -0.1}, {0.1, 0.1}}));
 
   // check model 0 body 1
   EXPECT_TRUE(BodyEq(m0->bodies_[1], "left_wheel", b2_dynamicBody, {-1, 0, 0},
                      {1, 0, 0, 0.25}, 0, 0));
-  fs = GetBodyFixtures(m0->bodies_[1]);
-  ASSERT_EQ(fs.size(), 1);
-  EXPECT_TRUE(FixtureEq(fs[0], true, 0, 0b01, 0b01, 0, 0, 0));
+  shapes = GetBodyShapes(m0->bodies_[1]);
+  ASSERT_EQ(shapes.size(), 1);
+  EXPECT_TRUE(FixtureEq(shapes[0], true, 0, 0b01, 0b01, 0, 0, 0));
   EXPECT_TRUE(PolygonEq(
-      fs[0], {{-0.2, 0.75}, {-0.2, -0.75}, {0.2, -0.75}, {0.2, 0.75}}));
+      shapes[0], {{-0.2, 0.75}, {-0.2, -0.75}, {0.2, -0.75}, {0.2, 0.75}}));
 
   // check model 0 body 2
   EXPECT_TRUE(BodyEq(m0->bodies_[2], "right_wheel", b2_dynamicBody, {1, 0, 0},
                      {0, 1, 0, 0.25}, 0, 0));
-  fs = GetBodyFixtures(m0->bodies_[2]);
-  ASSERT_EQ(fs.size(), 1);
-  EXPECT_TRUE(FixtureEq(fs[0], false, 0, 0xFFFF, 0xFFFF, 0, 0, 0));
+  shapes = GetBodyShapes(m0->bodies_[2]);
+  ASSERT_EQ(shapes.size(), 1);
+  EXPECT_TRUE(FixtureEq(shapes[0], false, 0, 0xFFFF, 0xFFFF, 0, 0, 0));
   EXPECT_TRUE(PolygonEq(
-      fs[0], {{-0.2, 0.75}, {-0.2, -0.75}, {0.2, -0.75}, {0.2, 0.75}}));
+      shapes[0], {{-0.2, 0.75}, {-0.2, -0.75}, {0.2, -0.75}, {0.2, 0.75}}));
 
   // check model 0 body 3
   EXPECT_TRUE(BodyEq(m0->bodies_[3], "tail", b2_dynamicBody, {0, 0, 0.52},
                      {0, 0, 0, 0.5}, 0, 0));
-  fs = GetBodyFixtures(m0->bodies_[3]);
-  ASSERT_EQ(fs.size(), 1);
-  EXPECT_TRUE(FixtureEq(fs[0], false, 0, 0b10, 0b10, 0, 0, 0));
-  EXPECT_TRUE(PolygonEq(fs[0], {{-0.2, 0}, {-0.2, -5}, {0.2, -5}, {0.2, 0}}));
+  shapes = GetBodyShapes(m0->bodies_[3]);
+  ASSERT_EQ(shapes.size(), 1);
+  EXPECT_TRUE(FixtureEq(shapes[0], false, 0, 0b10, 0b10, 0, 0, 0));
+  EXPECT_TRUE(PolygonEq(shapes[0], {{-0.2, 0}, {-0.2, -5}, {0.2, -5}, {0.2, 0}}));
 
   // check model 0 body 4
   EXPECT_TRUE(BodyEq(m0->bodies_[4], "antenna", b2_dynamicBody, {0, 0.5, 0},
                      {0.2, 0.4, 0.6, 1}, 0, 0));
-  fs = GetBodyFixtures(m0->bodies_[4]);
-  ASSERT_EQ(fs.size(), 1);
-  EXPECT_TRUE(FixtureEq(fs[0], false, 0, 0b0, 0b0, 0, 0, 0));
-  EXPECT_TRUE(CircleEq(fs[0], 0.01, 0.02, 0.25));
+  shapes = GetBodyShapes(m0->bodies_[4]);
+  ASSERT_EQ(shapes.size(), 1);
+  EXPECT_TRUE(FixtureEq(shapes[0], false, 0, 0b0, 0b0, 0, 0, 0));
+  EXPECT_TRUE(CircleEq(shapes[0], 0.01, 0.02, 0.25));
 
   // Check loaded joint data
   EXPECT_TRUE(JointEq(m0->joints_[0], "left_wheel_weld", {0.1, 0.2, 0.3, 0.4},
@@ -734,13 +667,13 @@ TEST_F(LoadWorldTest, simple_test_A) {
   // Check model 2 fixtures
   EXPECT_TRUE(BodyEq(m2->bodies_[0], "chair", b2_staticBody, {1.2, 3.5, 2.123},
                      {1, 1, 1, 0.5}, 0, 0));
-  fs = GetBodyFixtures(m2->bodies_[0]);
-  ASSERT_EQ(fs.size(), 2);
-  EXPECT_TRUE(FixtureEq(fs[0], false, 0, 0b1100, 0b1100, 0, 0, 0));
-  EXPECT_TRUE(CircleEq(fs[0], 0, 0, 1));
+  shapes = GetBodyShapes(m2->bodies_[0]);
+  ASSERT_EQ(shapes.size(), 2);
+  EXPECT_TRUE(FixtureEq(shapes[0], false, 0, 0b1100, 0b1100, 0, 0, 0));
+  EXPECT_TRUE(CircleEq(shapes[0], 0, 0, 1));
 
-  EXPECT_TRUE(FixtureEq(fs[1], false, 0, 0xFFFF, 0xFFFF, 0, 0, 0));
-  EXPECT_TRUE(CircleEq(fs[1], 0, 0, 0.2));
+  EXPECT_TRUE(FixtureEq(shapes[1], false, 0, 0xFFFF, 0xFFFF, 0, 0, 0));
+  EXPECT_TRUE(CircleEq(shapes[1], 0, 0, 0.2));
 
   // Check model 3 which is the chair
   Model *m3 = w->models_[3];
@@ -758,11 +691,11 @@ TEST_F(LoadWorldTest, simple_test_A) {
  * an exception
  */
 TEST_F(LoadWorldTest, wrong_world_path) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/random_path/");
-
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/random_path/world.yaml");
   test_yaml_fail(
       "Flatland YAML: File does not exist, "
-      "path=\".*/load_world_tests/random_path/world_plugins.yaml\".*");
+      "path=\".*/load_world_tests/random_path/world.yaml\".*");
 }
 
 /**
@@ -770,8 +703,8 @@ TEST_F(LoadWorldTest, wrong_world_path) {
  * an exception.
  */
 TEST_F(LoadWorldTest, world_invalid_A) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/world_invalid_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/world_invalid_A/world.yaml");
   test_yaml_fail("Flatland YAML: Entry \"properties\" does not exist");
 }
 
@@ -780,8 +713,8 @@ TEST_F(LoadWorldTest, world_invalid_A) {
  * an exception.
  */
 TEST_F(LoadWorldTest, world_invalid_B) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/world_invalid_B/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/world_invalid_B/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"color\" must have size of exactly 4 \\(in "
       "\"layers\" index=0\\)");
@@ -792,8 +725,8 @@ TEST_F(LoadWorldTest, world_invalid_B) {
  * an exception.
  */
 TEST_F(LoadWorldTest, world_invalid_C) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/world_invalid_C/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/world_invalid_C/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry index=0 contains unrecognized entry\\(s\\) "
       "\\{\"random_param_1\", \"random_param_2\", \"random_param_3\"\\} \\(in "
@@ -805,8 +738,8 @@ TEST_F(LoadWorldTest, world_invalid_C) {
  * an exception.
  */
 TEST_F(LoadWorldTest, world_invalid_D) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/world_invalid_D/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/world_invalid_D/world.yaml");
   test_yaml_fail("Flatland YAML: Layer with name \"layer\" already exists");
 }
 
@@ -815,8 +748,8 @@ TEST_F(LoadWorldTest, world_invalid_D) {
  * an exception.
  */
 TEST_F(LoadWorldTest, world_invalid_E) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/world_invalid_E/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/world_invalid_E/world.yaml");
   test_yaml_fail("Flatland YAML: Model with name \"turtlebot\" already exists");
 }
 
@@ -825,8 +758,8 @@ TEST_F(LoadWorldTest, world_invalid_E) {
  * an exception.
  */
 TEST_F(LoadWorldTest, world_invalid_F) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/world_invalid_F/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/world_invalid_F/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Unable to add 3 additional layer\\(s\\) \\{layer_15, "
       "layer_16, layer_17\\}, current layers count is 14, max allowed is 16");
@@ -837,7 +770,8 @@ TEST_F(LoadWorldTest, world_invalid_F) {
  * load a invalid map yaml file. It should throw an exception.
  */
 TEST_F(LoadWorldTest, map_invalid_A) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/map_invalid_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/map_invalid_A/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"origin\" does not exist \\(in layer "
       "\"2d\"\\)");
@@ -849,7 +783,8 @@ TEST_F(LoadWorldTest, map_invalid_A) {
  * throw an exception
  */
 TEST_F(LoadWorldTest, map_invalid_B) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/map_invalid_B/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/map_invalid_B/world.yaml");
   test_yaml_fail("Flatland YAML: Failed to load \".*\\.png\" in layer \"2d\"");
 }
 
@@ -858,7 +793,8 @@ TEST_F(LoadWorldTest, map_invalid_B) {
  * thrown
  */
 TEST_F(LoadWorldTest, map_invalid_C) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/map_invalid_C/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/map_invalid_C/world.yaml");
   test_yaml_fail(
       "Flatland File: Failed to load \".*/map_invalid_C/random_file.dat\"");
 }
@@ -868,7 +804,8 @@ TEST_F(LoadWorldTest, map_invalid_C) {
  * thrown
  */
 TEST_F(LoadWorldTest, map_invalid_D) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/map_invalid_D/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/map_invalid_D/world.yaml");
   test_yaml_fail(
       "Flatland File: Failed to read line segment from line 6, in file "
       "\"map_lines.dat\"");
@@ -879,7 +816,8 @@ TEST_F(LoadWorldTest, map_invalid_D) {
  * thrown
  */
 TEST_F(LoadWorldTest, map_invalid_E) {
-  world_yaml_path = this_file_dir / fs::path("load_world_tests/map_invalid_E/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/map_invalid_E/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"scale\" does not exist \\(in layer \"lines\"\\)");
 }
@@ -888,8 +826,8 @@ TEST_F(LoadWorldTest, map_invalid_E) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_A) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_A/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"bodies\" must be a list \\(in model "
       "\"turtlebot\"\\)");
@@ -899,8 +837,8 @@ TEST_F(LoadWorldTest, model_invalid_A) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_B) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_B/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_B/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"points\" must have size >= 3 \\(in model "
       "\"turtlebot\" body \"base\" \"footprints\" index=1\\)");
@@ -910,8 +848,8 @@ TEST_F(LoadWorldTest, model_invalid_B) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_C) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_C/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_C/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"anchor\" must have size of exactly 2 \\(in model "
       "\"turtlebot\" joint \"right_wheel_weld\" \"bodies\" index=1\\)");
@@ -921,8 +859,8 @@ TEST_F(LoadWorldTest, model_invalid_C) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_D) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_D/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_D/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Cannot find body with name \"left_wheel_123\" in model "
       "\"turtlebot\" joint \"left_wheel_weld\" \"bodies\" index=1");
@@ -932,8 +870,8 @@ TEST_F(LoadWorldTest, model_invalid_D) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_E) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_E/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_E/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Invalid footprint \"layers\" in model \"turtlebot\" body "
       "\"left_wheel\" \"footprints\" index=0, \\{random_layer\\} layer\\(s\\) "
@@ -944,8 +882,8 @@ TEST_F(LoadWorldTest, model_invalid_E) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_F) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_F/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_F/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry index=0 contains unrecognized entry\\(s\\) "
       "\\{\"random_paramter\"\\} \\(in model \"turtlebot\" body \"base\" "
@@ -956,8 +894,8 @@ TEST_F(LoadWorldTest, model_invalid_F) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_G) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_G/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_G/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry body \"base\" contains unrecognized entry\\(s\\) "
       "\\{\"random_paramter\"\\} \\(in model \"turtlebot\"\\)");
@@ -967,8 +905,8 @@ TEST_F(LoadWorldTest, model_invalid_G) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_H) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_H/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_H/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Invalid \"bodies\" in \"turtlebot\" model, body with "
       "name \"base\" already exists");
@@ -978,8 +916,8 @@ TEST_F(LoadWorldTest, model_invalid_H) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_I) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_I/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_I/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Invalid \"joints\" in \"turtlebot\" model, joint with "
       "name \"wheel_weld\" already exists");
@@ -989,8 +927,8 @@ TEST_F(LoadWorldTest, model_invalid_I) {
  * This test tries to load a invalid model yaml file, it should fail
  */
 TEST_F(LoadWorldTest, model_invalid_J) {
-  world_yaml_path =
-      this_file_dir / fs::path("load_world_tests/model_invalid_J/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/model_invalid_J/world.yaml");
   test_yaml_fail(
       "Flatland YAML: Entry \"points\" must have size <= 8 \\(in model "
       "\"turtlebot\" body \"base\" \"footprints\" index=1\\)");

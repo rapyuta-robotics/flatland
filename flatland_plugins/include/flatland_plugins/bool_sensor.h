@@ -87,13 +87,13 @@ class BoolSensor : public ModelPlugin {
    * @brief A method that is called for all Box2D begin contacts
    * @param[in] contact Box2D contact
    */
-  void BeginContact(b2Contact *contact) override;
+  void BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) override;
 
   /**
    * @brief A method that is called for all Box2D end contacts
    * @param[in] contact Box2D contact
    */
-  void EndContact(b2Contact *contact) override;
+  void EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) override;
 };
 };
 

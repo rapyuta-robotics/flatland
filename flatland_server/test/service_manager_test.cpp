@@ -61,7 +61,7 @@ class ServiceManagerTest : public ::testing::Test {
  protected:
   SimulationManager* sim_man;
   boost::filesystem::path this_file_dir;
-  boost::filesystem::path world_path;
+  boost::filesystem::path world_yaml;
   boost::filesystem::path robot_yaml;
   Timekeeper timekeeper;
   ros::NodeHandle nh;
@@ -80,10 +80,8 @@ class ServiceManagerTest : public ::testing::Test {
   }
 
   void StartSimulationThread() {
-    sim_man = new SimulationManager(world_path.string() + "world.yaml",
-                                    world_path.string(),
-                                    world_path.string() + "world_plugins.yaml",
-                                    1000, 1 / 1000.0 , false, 0);
+    sim_man =
+        new SimulationManager(world_yaml.string(), 1000, 1 / 1000.0, false, 0);
     simulation_thread = std::thread(&ServiceManagerTest::SimulationThread,
                                     dynamic_cast<ServiceManagerTest*>(this));
   }
@@ -100,7 +98,8 @@ class ServiceManagerTest : public ::testing::Test {
  * Testing service for loading a model which should succeed
  */
 TEST_F(ServiceManagerTest, spawn_valid_model) {
-  world_path = this_file_dir / fs::path("load_world_tests/simple_test_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/simple_test_A/world.yaml");
 
   robot_yaml = this_file_dir /
                fs::path("load_world_tests/simple_test_A/person.model.yaml");
@@ -109,7 +108,7 @@ TEST_F(ServiceManagerTest, spawn_valid_model) {
 
   srv.request.name = "service_manager_test_robot";
   srv.request.ns = "robot123";
-  srv.request.yaml_name = robot_yaml.string();
+  srv.request.yaml_path = robot_yaml.string();
   srv.request.pose.x = 101.1;
   srv.request.pose.y = 102.1;
   srv.request.pose.theta = 0.23;
@@ -119,7 +118,7 @@ TEST_F(ServiceManagerTest, spawn_valid_model) {
   // Threading is required since client.call blocks executing until return
   StartSimulationThread();
 
-  ros::service::waitForService("spawn_model", 5000);
+  ros::service::waitForService("spawn_model", 1000);
   ASSERT_TRUE(client.call(srv));
 
   ASSERT_TRUE(srv.response.success);
@@ -130,10 +129,10 @@ TEST_F(ServiceManagerTest, spawn_valid_model) {
   EXPECT_STREQ("service_manager_test_robot", w->models_[4]->name_.c_str());
   EXPECT_STREQ("robot123", w->models_[4]->namespace_.c_str());
   EXPECT_FLOAT_EQ(101.1,
-                  w->models_[4]->bodies_[0]->physics_body_->GetPosition().x);
+                  b2Body_GetPosition(w->models_[4]->bodies_[0]->physics_body_).x);
   EXPECT_FLOAT_EQ(102.1,
-                  w->models_[4]->bodies_[0]->physics_body_->GetPosition().y);
-  EXPECT_FLOAT_EQ(0.23, w->models_[4]->bodies_[0]->physics_body_->GetAngle());
+                  b2Body_GetPosition(w->models_[4]->bodies_[0]->physics_body_).y);
+  EXPECT_FLOAT_EQ(0.23, b2Rot_GetAngle(b2Body_GetRotation(w->models_[4]->bodies_[0]->physics_body_)));
   EXPECT_EQ(1, w->models_[4]->bodies_.size());
 }
 
@@ -141,14 +140,15 @@ TEST_F(ServiceManagerTest, spawn_valid_model) {
  * Testing service for loading a model which should fail
  */
 TEST_F(ServiceManagerTest, spawn_invalid_model) {
-  world_path = this_file_dir / fs::path("load_world_tests/simple_test_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/simple_test_A/world.yaml");
 
   robot_yaml = this_file_dir / fs::path("random_path/turtlebot.model.yaml");
 
   flatland_msgs::SpawnModel srv;
 
   srv.request.name = "service_manager_test_robot";
-  srv.request.yaml_name = robot_yaml.string();
+  srv.request.yaml_path = robot_yaml.string();
   srv.request.pose.x = 1;
   srv.request.pose.y = 2;
   srv.request.pose.theta = 3;
@@ -157,7 +157,7 @@ TEST_F(ServiceManagerTest, spawn_invalid_model) {
 
   StartSimulationThread();
 
-  ros::service::waitForService("spawn_model", 5000);
+  ros::service::waitForService("spawn_model", 1000);
   ASSERT_TRUE(client.call(srv));
 
   ASSERT_FALSE(srv.response.success);
@@ -176,7 +176,8 @@ TEST_F(ServiceManagerTest, spawn_invalid_model) {
  * Testing service for moving a valid model
  */
 TEST_F(ServiceManagerTest, move_model) {
-  world_path = this_file_dir / fs::path("load_world_tests/simple_test_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/simple_test_A/world.yaml");
 
   flatland_msgs::MoveModel srv;
   srv.request.name = "turtlebot1";
@@ -188,24 +189,23 @@ TEST_F(ServiceManagerTest, move_model) {
 
   StartSimulationThread();
 
-  ros::service::waitForService("move_model", 5000);
+  ros::service::waitForService("move_model", 1000);
   ASSERT_TRUE(client.call(srv));
 
   ASSERT_TRUE(srv.response.success);
 
   World* w = sim_man->world_;
-  EXPECT_NEAR(5.5, w->models_[0]->bodies_[0]->physics_body_->GetPosition().x,
-              1e-1);
-  EXPECT_NEAR(9.9, w->models_[0]->bodies_[0]->physics_body_->GetPosition().y,
-              1e-1);
-  EXPECT_NEAR(0.77, w->models_[0]->bodies_[0]->physics_body_->GetAngle(), 1e-1);
+  EXPECT_NEAR(5.5, b2Body_GetPosition(w->models_[0]->bodies_[0]->physics_body_).x, 1e-2);
+  EXPECT_NEAR(9.9, b2Body_GetPosition(w->models_[0]->bodies_[0]->physics_body_).y, 1e-2);
+  EXPECT_NEAR(0.77, b2Rot_GetAngle(b2Body_GetRotation(w->models_[0]->bodies_[0]->physics_body_)), 1e-2);
 }
 
 /**
  * Testing service for moving a nonexistent model
  */
 TEST_F(ServiceManagerTest, move_nonexistent_model) {
-  world_path = this_file_dir / fs::path("load_world_tests/simple_test_A/");
+  world_yaml =
+      this_file_dir / fs::path("load_world_tests/simple_test_A/world.yaml");
 
   flatland_msgs::MoveModel srv;
   srv.request.name = "not_a_robot";
@@ -217,7 +217,7 @@ TEST_F(ServiceManagerTest, move_nonexistent_model) {
 
   StartSimulationThread();
 
-  ros::service::waitForService("move_model", 5000);
+  ros::service::waitForService("move_model", 1000);
   ASSERT_TRUE(client.call(srv));
 
   ASSERT_FALSE(srv.response.success);
@@ -231,8 +231,8 @@ TEST_F(ServiceManagerTest, move_nonexistent_model) {
  * Testing service for deleting a model
  */
 TEST_F(ServiceManagerTest, delete_model) {
-  world_path =
-      this_file_dir / fs::path("plugin_manager_tests/load_dummy_test/");
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/load_dummy_test/world.yaml");
 
   flatland_msgs::DeleteModel srv;
   srv.request.name = "turtlebot1";
@@ -241,7 +241,7 @@ TEST_F(ServiceManagerTest, delete_model) {
 
   StartSimulationThread();
 
-  ros::service::waitForService("delete_model", 5000);
+  ros::service::waitForService("delete_model", 1000);
   ASSERT_TRUE(client.call(srv));
 
   ASSERT_TRUE(srv.response.success);
@@ -258,8 +258,8 @@ TEST_F(ServiceManagerTest, delete_model) {
  * Testing service for deleting a model that does not exist, should fail
  */
 TEST_F(ServiceManagerTest, delete_nonexistent_model) {
-  world_path =
-      this_file_dir / fs::path("plugin_manager_tests/load_dummy_test/");
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/load_dummy_test/world.yaml");
 
   flatland_msgs::DeleteModel srv;
   srv.request.name = "random_model";
@@ -268,7 +268,7 @@ TEST_F(ServiceManagerTest, delete_nonexistent_model) {
 
   StartSimulationThread();
 
-  ros::service::waitForService("delete_model", 5000);
+  ros::service::waitForService("delete_model", 1000);
   ASSERT_TRUE(client.call(srv));
 
   ASSERT_FALSE(srv.response.success);

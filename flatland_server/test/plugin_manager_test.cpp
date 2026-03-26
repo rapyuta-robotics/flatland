@@ -61,8 +61,8 @@ class TestModelPlugin : public ModelPlugin {
   double timestep_before;
   double timestep_after;
   Entity *entity;
-  b2Fixture *fixture_A;
-  b2Fixture *fixture_B;
+  b2ShapeId shape_A;
+  b2ShapeId shape_B;
 
   std::map<std::string, bool> function_called;
 
@@ -70,16 +70,14 @@ class TestModelPlugin : public ModelPlugin {
 
   void ClearTestingVariables() {
     entity = nullptr;
-    fixture_A = nullptr;
-    fixture_B = nullptr;
+    shape_A = b2_nullShapeId;
+    shape_B = b2_nullShapeId;
 
     function_called["OnInitialize"] = false;
     function_called["BeforePhysicsStep"] = false;
     function_called["AfterPhysicsStep"] = false;
     function_called["BeginContact"] = false;
     function_called["EndContact"] = false;
-    function_called["PreSolve"] = false;
-    function_called["PostSolve"] = false;
   }
 
   void OnInitialize(const YAML::Node &config) override {
@@ -94,32 +92,27 @@ class TestModelPlugin : public ModelPlugin {
     function_called["AfterPhysicsStep"] = true;
   }
 
-  void BeginContact(b2Contact *contact) override {
+  void BeginContact(b2ShapeId shapeA, b2ShapeId shapeB) override {
     function_called["BeginContact"] = true;
-    FilterContact(contact, entity, fixture_A, fixture_B);
+    b2BodyId bodyA, bodyB;
+    FilterContact(shapeA, shapeB, entity, bodyA, bodyB);
+    shape_A = shapeA;
+    shape_B = shapeB;
   }
 
-  void EndContact(b2Contact *contact) override {
+  void EndContact(b2ShapeId shapeA, b2ShapeId shapeB) override {
     function_called["EndContact"] = true;
-    FilterContact(contact, entity, fixture_A, fixture_B);
-  }
-
-  void PreSolve(b2Contact *contact, const b2Manifold *oldManifold) override {
-    function_called["PreSolve"] = true;
-    FilterContact(contact, entity, fixture_A, fixture_B);
-  }
-
-  void PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) override {
-    function_called["PostSolve"] = true;
-    FilterContact(contact, entity, fixture_A, fixture_B);
+    b2BodyId bodyA, bodyB;
+    FilterContact(shapeA, shapeB, entity, bodyA, bodyB);
+    shape_A = shapeA;
+    shape_B = shapeB;
   }
 };
 
 class PluginManagerTest : public ::testing::Test {
  protected:
   boost::filesystem::path this_file_dir;
-  boost::filesystem::path world_yaml_dir;
-
+  boost::filesystem::path world_yaml;
   Timekeeper timekeeper;
   World *w;
 
@@ -179,14 +172,10 @@ class PluginManagerTest : public ::testing::Test {
  * called with the expected inputs
  */
 TEST_F(PluginManagerTest, collision_test) {
-  world_yaml_dir =
-      this_file_dir / fs::path("plugin_manager_tests/collision_test/");
-
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/collision_test/world.yaml");
   timekeeper.SetMaxStepSize(1.0);
-  w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
-                       world_yaml_dir.string(),
-                       world_yaml_dir.string() + "world_plugins.yaml");
-  w->LoadWorldEntities();
+  w = World::MakeWorld(world_yaml.string());
   Layer *l = w->layers_[0];
   Model *m0 = w->models_[0];
   Model *m1 = w->models_[1];
@@ -204,98 +193,81 @@ TEST_F(PluginManagerTest, collision_test) {
   w->Update(timekeeper);
   w->Update(timekeeper);
 
-  // model 0 is placed right on top of a layer edge at the begining. Thus,
+  // model 0 is placed right on top of a layer edge at the beginning. Thus,
   // begin contact should trigger, as well as before and after physics step.
-  // Note that pre and post solve are never called because the fixtures are
-  // set as sensors
   EXPECT_TRUE(FunctionCallEq(p, {{"OnInitialize", true},
                                  {"BeforePhysicsStep", true},
                                  {"AfterPhysicsStep", true},
                                  {"BeginContact", true},
-                                 {"EndContact", false},
-                                 {"PreSolve", false},
-                                 {"PostSolve", false}}));
+                                 {"EndContact", false}}));
   EXPECT_EQ(p->entity, l);
-  EXPECT_EQ(p->fixture_A, b0->physics_body_->GetFixtureList());
-  EXPECT_EQ(p->fixture_B->GetType(), b2Shape::e_edge);
+  // shape_A should belong to b0's body
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_A), b0->physics_body_));
+  // shape_B should be a segment shape (layer edge)
+  EXPECT_EQ(b2Shape_GetType(p->shape_B), b2_segmentShape);
   p->ClearTestingVariables();
 
   // move the body 2m to the left over two 1s timesteps, this should remove any
   // contacts between the body and the layer
-  b0->physics_body_->SetLinearVelocity(b2Vec2(-1, 0));
-  // takes two steps for Box2D to genreate collision events, not sure why
+  b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{-1, 0});
+  // takes two steps for Box2D to generate collision events
   w->Update(timekeeper);
   w->Update(timekeeper);
   EXPECT_TRUE(FunctionCallEq(p, {{"OnInitialize", false},
                                  {"BeforePhysicsStep", true},
                                  {"AfterPhysicsStep", true},
                                  {"BeginContact", false},
-                                 {"EndContact", true},
-                                 {"PreSolve", false},
-                                 {"PostSolve", false}}));
+                                 {"EndContact", true}}));
   EXPECT_EQ(p->entity, l);
-  EXPECT_EQ(p->fixture_A, b0->physics_body_->GetFixtureList());
-  EXPECT_EQ(p->fixture_B->GetType(), b2Shape::e_edge);
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_A), b0->physics_body_));
+  EXPECT_EQ(b2Shape_GetType(p->shape_B), b2_segmentShape);
   p->ClearTestingVariables();
 
   // move the body 1m down over 2 timesteps, this should place model 0 in
   // contact with model 1
-  b0->physics_body_->SetLinearVelocity(b2Vec2(0, 0));
-  b1->physics_body_->SetLinearVelocity(b2Vec2(0, -0.5f));
+  b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{0, 0});
+  b2Body_SetLinearVelocity(b1->physics_body_, b2Vec2{0, -0.5f});
   w->Update(timekeeper);
   w->Update(timekeeper);
   EXPECT_TRUE(FunctionCallEq(p, {{"OnInitialize", false},
                                  {"BeforePhysicsStep", true},
                                  {"AfterPhysicsStep", true},
                                  {"BeginContact", true},
-                                 {"EndContact", false},
-                                 {"PreSolve", false},
-                                 {"PostSolve", false}}));
+                                 {"EndContact", false}}));
   EXPECT_EQ(p->entity, m1);
-  EXPECT_EQ(p->fixture_B, b1->physics_body_->GetFixtureList());
-  EXPECT_EQ(p->fixture_A, b0->physics_body_->GetFixtureList());
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_B), b1->physics_body_));
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_A), b0->physics_body_));
   p->ClearTestingVariables();
 
   // move the body 2m down over 2 timesteps, this should clear any contacts for
   // model 0
-  b0->physics_body_->SetLinearVelocity(b2Vec2(0, 0));
-  b1->physics_body_->SetLinearVelocity(b2Vec2(0, -1));
+  b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{0, 0});
+  b2Body_SetLinearVelocity(b1->physics_body_, b2Vec2{0, -1.0f});
   w->Update(timekeeper);
   w->Update(timekeeper);
   EXPECT_TRUE(FunctionCallEq(p, {{"OnInitialize", false},
                                  {"BeforePhysicsStep", true},
                                  {"AfterPhysicsStep", true},
                                  {"BeginContact", false},
-                                 {"EndContact", true},
-                                 {"PreSolve", false},
-                                 {"PostSolve", false}}));
+                                 {"EndContact", true}}));
   EXPECT_EQ(p->entity, m1);
-  EXPECT_EQ(p->fixture_B, b1->physics_body_->GetFixtureList());
-  EXPECT_EQ(p->fixture_A, b0->physics_body_->GetFixtureList());
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_B), b1->physics_body_));
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_A), b0->physics_body_));
   p->ClearTestingVariables();
 
-  // Now we set model 0 fixture as not a sensor, this should trigger pre and
-  // post solves in the contact listener in subsequent tests
-  b0->physics_body_->GetFixtureList()->SetSensor(false);
-
-  // now teleport the body for model 0 to (0, 0) which is right on top of a
-  // layer edge, set zero velocity and step, this will cause the body
-  // to begin contact with the layer, but you can't be sure if end contact
-  // will be called
-  b0->physics_body_->SetLinearVelocity(b2Vec2(0, 0));
-  b0->physics_body_->SetTransform(b2Vec2(0, 0), 0);
+  // now teleport b0 back to (0, 0) on top of the layer edge
+  b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{0, 0});
+  b2Body_SetTransform(b0->physics_body_, b2Vec2{0, 0}, b2MakeRot(0));
   w->Update(timekeeper);
   w->Update(timekeeper);
   EXPECT_TRUE(FunctionCallEq(p, {{"OnInitialize", false},
                                  {"BeforePhysicsStep", true},
                                  {"AfterPhysicsStep", true},
                                  {"BeginContact", true},
-                                 {"EndContact", false},
-                                 {"PreSolve", true},
-                                 {"PostSolve", true}}));
+                                 {"EndContact", false}}));
   EXPECT_EQ(p->entity, l);
-  EXPECT_EQ(p->fixture_A, b0->physics_body_->GetFixtureList());
-  EXPECT_EQ(p->fixture_B->GetType(), b2Shape::e_edge);
+  EXPECT_TRUE(B2_ID_EQUALS(b2Shape_GetBody(p->shape_A), b0->physics_body_));
+  EXPECT_EQ(b2Shape_GetType(p->shape_B), b2_segmentShape);
   p->ClearTestingVariables();
 
   // w->DebugVisualize();
@@ -304,13 +276,11 @@ TEST_F(PluginManagerTest, collision_test) {
 }
 
 TEST_F(PluginManagerTest, load_dummy_test) {
-  world_yaml_dir =
-      this_file_dir / fs::path("plugin_manager_tests/load_dummy_test/");
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/load_dummy_test/world.yaml");
 
-  w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
-                       world_yaml_dir.string(),
-                       world_yaml_dir.string() + "world_plugins.yaml");
-  w->LoadWorldEntities();
+  w = World::MakeWorld(world_yaml.string());
+
   ModelPlugin *p = w->plugin_manager_.model_plugins_[0].get();
 
   EXPECT_STREQ(p->GetType().c_str(), "DummyModelPlugin");
@@ -318,13 +288,12 @@ TEST_F(PluginManagerTest, load_dummy_test) {
 }
 
 TEST_F(PluginManagerTest, plugin_throws_exception) {
-  world_yaml_dir =
-      this_file_dir / fs::path("plugin_manager_tests/plugin_throws_exception/");
+  world_yaml =
+      this_file_dir /
+      fs::path("plugin_manager_tests/plugin_throws_exception/world.yaml");
+
   try {
-    w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
-                         world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml");
-    w->LoadWorldEntities();
+    w = World::MakeWorld(world_yaml.string());
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException &e) {
     // do a regex match against error message
@@ -344,14 +313,11 @@ TEST_F(PluginManagerTest, plugin_throws_exception) {
 }
 
 TEST_F(PluginManagerTest, nonexistent_plugin) {
-  world_yaml_dir =
-      this_file_dir / fs::path("plugin_manager_tests/nonexistent_plugin/");
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/nonexistent_plugin/world.yaml");
 
   try {
-    w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
-                         world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml");
-    w->LoadWorldEntities();
+    w = World::MakeWorld(world_yaml.string());
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException &e) {
     std::cmatch match;
@@ -370,14 +336,11 @@ TEST_F(PluginManagerTest, nonexistent_plugin) {
 }
 
 TEST_F(PluginManagerTest, invalid_plugin_yaml) {
-  world_yaml_dir =
-      this_file_dir / fs::path("plugin_manager_tests/invalid_plugin_yaml/");
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/invalid_plugin_yaml/world.yaml");
 
   try {
-    w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
-                         world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml");
-    w->LoadWorldEntities();
+    w = World::MakeWorld(world_yaml.string());
     FAIL() << "Expected an exception, but none were raised";
   } catch (const YAMLException &e) {
     EXPECT_STREQ(
@@ -392,14 +355,11 @@ TEST_F(PluginManagerTest, invalid_plugin_yaml) {
 }
 
 TEST_F(PluginManagerTest, duplicate_plugin) {
-  world_yaml_dir =
-      this_file_dir / fs::path("plugin_manager_tests/duplicate_plugin/");
+  world_yaml = this_file_dir /
+               fs::path("plugin_manager_tests/duplicate_plugin/world.yaml");
 
   try {
-    w = World::MakeWorld(world_yaml_dir.string() + "world.yaml",
-                         world_yaml_dir.string(),
-                         world_yaml_dir.string() + "world_plugins.yaml");
-    w->LoadWorldEntities();
+    w = World::MakeWorld(world_yaml.string());
     FAIL() << "Expected an exception, but none were raised";
   } catch (const YAMLException &e) {
     EXPECT_STREQ(

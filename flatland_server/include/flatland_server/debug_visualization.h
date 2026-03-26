@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_DEBUG_VISUALIZATION_H
 #define FLATLAND_SERVER_DEBUG_VISUALIZATION_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_msgs/DebugTopicList.h>
 #include <ros/ros.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -94,7 +94,7 @@ class DebugVisualization {
    * @param[in] b blue color 0.0->1.0
    * @param[in] a alpha color 0.0->1.0
    */
-  void Visualize(std::string name, b2Body* body, float r, float g, float b,
+  void Visualize(std::string name, b2BodyId body, float r, float g, float b,
                  float a);
 
   /**
@@ -106,7 +106,7 @@ class DebugVisualization {
    * @param[in] b blue color 0.0->1.0
    * @param[in] a alpha color 0.0->1.0
    */
-  void Visualize(std::string name, b2Joint* joint, float r, float g, float b,
+  void Visualize(std::string name, b2JointId joint, float r, float g, float b,
                  float a);
 
   /**
@@ -135,7 +135,7 @@ class DebugVisualization {
    * @param[in] b blue color 0.0->1.0
    * @param[in] a alpha color 0.0->1.0
    */
-  void BodyToMarkers(visualization_msgs::MarkerArray& markers, b2Body* body,
+  void BodyToMarkers(visualization_msgs::MarkerArray& markers, b2BodyId body,
                      float r, float g, float b, float a);
 
   /**
@@ -147,7 +147,7 @@ class DebugVisualization {
    * @param[in] b blue color 0.0->1.0
    * @param[in] a alpha color 0.0->1.0
    */
-  void JointToMarkers(visualization_msgs::MarkerArray& markers, b2Joint* joint,
+  void JointToMarkers(visualization_msgs::MarkerArray& markers, b2JointId joint,
                       float r, float g, float b, float a);
 
   /**

@@ -101,8 +101,7 @@ class YAMLException : public Exception {
    * exception message using just a message
    * @param[in] msg Exception message
    */
-  explicit YAMLException(const std::string &msg)
-      : Exception("Flatland YAML: " + msg) {}
+  YAMLException(const std::string &msg) : Exception("Flatland YAML: " + msg) {}
 
  private:
   /**
@@ -124,7 +123,7 @@ class YAMLException : public Exception {
              << yaml_cpp_mark.column + 1;
     }
 
-    if (!yaml_cpp_msg.empty()) {
+    if (yaml_cpp_msg.size() > 0) {
       output << ", " << yaml_cpp_msg;
     }
 

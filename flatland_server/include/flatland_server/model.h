@@ -52,7 +52,6 @@
 #include <flatland_server/joint.h>
 #include <flatland_server/message_server.h>
 #include <flatland_server/model_body.h>
-#include <flatland_server/model_plugin.h>
 #include <flatland_server/yaml_reader.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>
@@ -60,7 +59,6 @@
 namespace flatland_server {
 
 class ModelBody;
-class ModelPlugin;
 class Joint;
 class World;
 
@@ -70,7 +68,7 @@ class World;
  */
 class Model : public Entity {
  private:
-  flatland_server::World *world;
+  World *world_;  ///< pointer to parent world (may be nullptr for legacy construction)
 
  public:
   std::string namespace_;            ///< namespace of the model
@@ -79,16 +77,18 @@ class Model : public Entity {
   YamlReader plugins_reader_;        ///< for storing plugins when paring YAML
   CollisionFilterRegistry *cfr_;     ///< Collision filter registry
   std::string viz_name_;             ///< used for visualization
-                                     /**
-                                      * @brief Constructor for the model
-                                      * @param[in] physics_world Box2D physics world
-                                      * @param[in] cfr Collision filter registry
-                                      * @param[in] name Name of the model
-                                      */
-  Model(World *world, b2World *physics_world, CollisionFilterRegistry *cfr,
+
+  /**
+   * @brief Constructor for the model
+   * @param[in] physics_world Box2D physics world
+   * @param[in] cfr Collision filter registry
+   * @param[in] name Name of the model
+   */
+  Model(b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
-  Model(b2World *physics_world, CollisionFilterRegistry *cfr,
+  Model(World *world, b2WorldId physics_world, CollisionFilterRegistry *cfr,
         const std::string &ns, const std::string &name);
+
   /**
    * @brief Destructor for the layer class
    */
@@ -117,26 +117,10 @@ class Model : public Entity {
    * @param[in] name Name of the body
    * @return pointer to the body, nullptr indicates body cannot be found
    */
-  ModelBody *GetBody(const std::string &name);
-
-  /**
- * @brief Get a body in the model using its name
- * @param[in] name Name of the body
- * @return pointer to the body, nullptr indicates body cannot be found
- */
-  ModelPlugin *GetPlugin(const std::string &name) const;
-
-  /**
-   * @brief Returns the
-   * @return pointer to the world, nullptr indicates world cannot be found
-   */
   World &GetWorld() const;
-
-  /**
-    * @brief Returns the
-    * @return pointer to the world, nullptr indicates world cannot be found
-    */
   MessageServer &GetMessageServer() const;
+
+  ModelBody *GetBody(const std::string &name);
 
   /**
    * @brief Get a body in the model using its name
@@ -216,7 +200,10 @@ class Model : public Entity {
    * @param[in] name Name of the model
    * @return A new model
    */
-  static Model *MakeModel(World *world, b2World *physics_world,
+  static Model *MakeModel(b2WorldId physics_world, CollisionFilterRegistry *cfr,
+                          const std::string &model_yaml_path,
+                          const std::string &ns, const std::string &name);
+  static Model *MakeModel(World *world, b2WorldId physics_world,
                           CollisionFilterRegistry *cfr,
                           const std::string &model_yaml_path,
                           const std::string &ns, const std::string &name);

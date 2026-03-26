@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/debug_visualization.h>
 #include <flatland_server/exceptions.h>
 #include <flatland_server/types.h>
@@ -58,12 +58,67 @@
 
 namespace flatland_server {
 
+// --------------- enkiTS <-> Box2D v3 task adapter ---------------
+
+class FlatlandTask : public enki::ITaskSet {
+public:
+  FlatlandTask() = default;
+
+  void ExecuteRange(enki::TaskSetPartition range,
+                    uint32_t threadIndex) override {
+    m_task(range.start, range.end, threadIndex, m_taskContext);
+  }
+
+  b2TaskCallback *m_task = nullptr;
+  void *m_taskContext = nullptr;
+};
+
+static constexpr int kMaxTasks = 128;
+static FlatlandTask s_tasks[kMaxTasks];
+static int s_taskCount = 0;
+
+static void *EnkiEnqueueTask(b2TaskCallback *fcn, int32_t itemCount,
+                              int32_t minRange, void *taskContext,
+                              void *userContext) {
+  auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
+  if (s_taskCount < kMaxTasks) {
+    FlatlandTask &task = s_tasks[s_taskCount];
+    task.m_SetSize = itemCount;
+    task.m_MinRange = minRange;
+    task.m_task = fcn;
+    task.m_taskContext = taskContext;
+    scheduler->AddTaskSetToPipe(&task);
+    ++s_taskCount;
+    return &task;
+  }
+  // Fallback: run inline if pool exhausted
+  fcn(0, itemCount, 0, taskContext);
+  return nullptr;
+}
+
+static void EnkiFinishTask(void *userTask, void *userContext) {
+  if (userTask != nullptr) {
+    auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
+    auto *task = static_cast<FlatlandTask *>(userTask);
+    scheduler->WaitforTask(task);
+  }
+}
+
+// ----------------------------------------------------------------
+
 World::World()
-    : gravity_(0, 0),
+    : gravity_({0.0f, 0.0f}),
       service_paused_(false),
       int_marker_manager_(&models_, &plugin_manager_) {
-  physics_world_ = new b2World(gravity_);
-  physics_world_->SetContactListener(this);
+  task_scheduler_.Initialize();
+
+  b2WorldDef world_def = b2DefaultWorldDef();
+  world_def.gravity = gravity_;
+  world_def.workerCount = task_scheduler_.GetNumTaskThreads();
+  world_def.enqueueTask = EnkiEnqueueTask;
+  world_def.finishTask = EnkiFinishTask;
+  world_def.userTaskContext = &task_scheduler_;
+  world_id_ = b2CreateWorld(&world_def);
 }
 
 World::~World() {
@@ -72,15 +127,14 @@ World::~World() {
   // The order of things matters in the destructor. The contact listener is
   // removed first to avoid the triggering the contact functions in plugin
   // manager which might cause it to work with deleted layers/models.
-  physics_world_->SetContactListener(nullptr);
 
-  // the physics body of layers are set to null because there are tons of
-  // fixtures in a layer and it is too slow for the destroyBody method to remove
-  // them since the AABB tree gets restructured everytime a fixture is removed
-  // The memory will later be freed by deleting the world
+  // the physics body of layers are set to b2_nullBodyId because there are tons
+  // of shapes in a layer and it is too slow for the DestroyBody method to
+  // remove them since the AABB tree gets restructured every time a shape is
+  // removed. The memory will later be freed by destroying the world.
   for (auto &layer : layers_) {
     if (layer->body_ != nullptr) {
-      layer->body_->physics_body_ = nullptr;
+      layer->body_->physics_body_ = b2_nullBodyId;
     }
     delete layer;
   }
@@ -93,55 +147,45 @@ World::~World() {
   }
 
   // This frees the entire Box2D world with everything in it
-  delete physics_world_;
+  b2DestroyWorld(world_id_);
+  world_id_ = b2_nullWorldId;
+  task_scheduler_.WaitforAllAndShutdown();
 
   ROS_INFO_NAMED("World", "World destroyed");
 }
 
 void World::Update(Timekeeper &timekeeper) {
   if (!IsPaused()) {
-    START_PROFILE(timekeeper, "Before Physics Step");
     plugin_manager_.BeforePhysicsStep(timekeeper);
-    END_PROFILE(timekeeper, "Before Physics Step");
+    s_taskCount = 0;  // Reset task pool for this step
+    b2World_Step(world_id_, timekeeper.GetStepSize(),
+                 physics_velocity_iterations_);
 
-    START_PROFILE(timekeeper, "Physics Step");
-    physics_world_->Step(timekeeper.GetStepSize(), physics_velocity_iterations_,
-                         physics_position_iterations_);
-    END_PROFILE(timekeeper, "Physics Step");
+    // Poll contact events (replaces b2ContactListener callbacks from v2)
+    b2ContactEvents events = b2World_GetContactEvents(world_id_);
+    for (int i = 0; i < events.beginCount; i++) {
+      const b2ContactBeginTouchEvent &e = events.beginEvents[i];
+      plugin_manager_.BeginContact(e.shapeIdA, e.shapeIdB);
+    }
+    for (int i = 0; i < events.endCount; i++) {
+      const b2ContactEndTouchEvent &e = events.endEvents[i];
+      plugin_manager_.EndContact(e.shapeIdA, e.shapeIdB);
+    }
+    for (int i = 0; i < events.hitCount; i++) {
+      const b2ContactHitEvent &e = events.hitEvents[i];
+      plugin_manager_.OnContactHit(e.shapeIdA, e.shapeIdB, e.point, e.normal,
+                                   e.approachSpeed);
+    }
 
     timekeeper.StepTime();
-
-    START_PROFILE(timekeeper, "After Physics Step");
     plugin_manager_.AfterPhysicsStep(timekeeper);
-    END_PROFILE(timekeeper, "After Physics Step");
   }
+  int_marker_manager_.update();
 }
 
-void World::BeginContact(b2Contact *contact) {
-  plugin_manager_.BeginContact(contact);
-}
-
-void World::EndContact(b2Contact *contact) {
-  plugin_manager_.EndContact(contact);
-}
-
-void World::PreSolve(b2Contact *contact, const b2Manifold *oldManifold) {
-  plugin_manager_.PreSolve(contact, oldManifold);
-}
-
-void World::PostSolve(b2Contact *contact, const b2ContactImpulse *impulse) {
-  plugin_manager_.PostSolve(contact, impulse);
-}
-
-World *World::MakeWorld(const std::string &yaml_path,
-                        const std::string &models_path,
-                        const std::string &world_plugins_path) {
-  YamlReader world_settings_reader = YamlReader(world_plugins_path);
-  YamlReader prop_reader =
-      world_settings_reader.Subnode("properties", YamlReader::MAP);
-  YamlReader world_plugin_reader =
-      world_settings_reader.SubnodeOpt("plugins", YamlReader::LIST);
-
+World *World::MakeWorld(const std::string &yaml_path) {
+  YamlReader world_reader = YamlReader(yaml_path);
+  YamlReader prop_reader = world_reader.Subnode("properties", YamlReader::MAP);
   int v = prop_reader.Get<int>("velocity_iterations", 10);
   int p = prop_reader.Get<int>("position_iterations", 10);
   prop_reader.EnsureAccessedAllKeys();
@@ -149,16 +193,19 @@ World *World::MakeWorld(const std::string &yaml_path,
   World *w = new World();
 
   w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
-  w->physics_velocity_iterations_ = v;
-  w->physics_position_iterations_ = p;
-  w->models_path_ = models_path;
   w->yaml_path_ = yaml_path;
+  w->physics_velocity_iterations_ = v;
 
   try {
-    w->LoadWorldPlugins(world_plugin_reader, w, world_settings_reader);
-
-    world_settings_reader.EnsureAccessedAllKeys();
-
+    YamlReader layers_reader = world_reader.Subnode("layers", YamlReader::LIST);
+    YamlReader models_reader =
+        world_reader.SubnodeOpt("models", YamlReader::LIST);
+    YamlReader world_plugin_reader =
+        world_reader.SubnodeOpt("plugins", YamlReader::LIST);
+    world_reader.EnsureAccessedAllKeys();
+    w->LoadLayers(layers_reader);
+    w->LoadModels(models_reader);
+    w->LoadWorldPlugins(world_plugin_reader, w, world_reader);
   } catch (const YAMLException &e) {
     ROS_FATAL_NAMED("World", "Error loading from YAML");
     delete w;
@@ -182,28 +229,30 @@ void World::LoadWorldEntities() {
         map_info_reader.Subnode("layers", YamlReader::LIST);
     YamlReader models_reader =
         map_info_reader.SubnodeOpt("models", YamlReader::LIST);
-
-    this->LoadLayers(layers_reader);
-    this->LoadModels(models_reader);
-
+    LoadLayers(layers_reader);
+    LoadModels(models_reader);
   } catch (const YAMLException &e) {
-    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World", yaml_path_
-                                                           << "not loaded yet");
-    throw e;
-  } catch (const PluginException &e) {
-    ROS_FATAL_NAMED("World", "Error loading plugins");
-    throw e;
-  } catch (const Exception &e) {
-    ROS_FATAL_NAMED("World", "Error loading world");
+    ROS_WARN_STREAM_DELAYED_THROTTLE_NAMED(1, "World",
+                                          yaml_path_ << " not loaded yet");
     throw e;
   }
 }
 
-void World::LoadLayers(YamlReader &layers_reader) {
-  layers_name_map_.clear();
-  layers_.clear();
-  cfr_.ClearAllLayers();
+void World::SlowSimTime(const std::string & /*agent*/) {
+  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+}
 
+void World::FastSimTime(const std::string & /*agent*/) {
+  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+}
+
+void World::InitializeDynamicFastSim(double /*max_lower_speed*/,
+                                      double /*min_lower_speed*/,
+                                      int /*num_robots_threshold*/) {
+  // Stub: dynamic fast-sim initialization not yet ported to Box2D v3 branch
+}
+
+void World::LoadLayers(YamlReader &layers_reader) {
   // loop through each layer and parse the data
   for (int i = 0; i < layers_reader.NodeSize(); i++) {
     YamlReader reader = layers_reader.Subnode(i, YamlReader::MAP);
@@ -244,7 +293,7 @@ void World::LoadLayers(YamlReader &layers_reader) {
     ROS_INFO_NAMED("World", "Loading layer \"%s\" from path=\"%s\"",
                    names[0].c_str(), map_path.string().c_str());
 
-    Layer *layer = Layer::MakeLayer(physics_world_, &cfr_, map_path.string(),
+    Layer *layer = Layer::MakeLayer(world_id_, &cfr_, map_path.string(),
                                     names, color, properties);
     layers_name_map_.insert(
         std::pair<std::vector<std::string>, Layer *>(names, layer));
@@ -259,29 +308,13 @@ void World::LoadModels(YamlReader &models_reader) {
   if (!models_reader.IsNodeNull()) {
     for (int i = 0; i < models_reader.NodeSize(); i++) {
       YamlReader reader = models_reader.Subnode(i, YamlReader::MAP);
-      std::string name = reader.Get<std::string>("name");
-      models_.erase(
-          std::remove_if(models_.begin(), models_.end(),
-                         [&name](const Model *m) { return m->name_ == name; }),
-          models_.end());
-    }
-
-    for (int i = 0; i < models_reader.NodeSize(); i++) {
-      YamlReader reader = models_reader.Subnode(i, YamlReader::MAP);
 
       std::string name = reader.Get<std::string>("name");
       std::string ns = reader.Get<std::string>("namespace", "");
       Pose pose = reader.GetPose("pose", Pose(0, 0, 0));
       std::string path = reader.Get<std::string>("model");
       reader.EnsureAccessedAllKeys();
-
-      if (std::find_if(models_.begin(), models_.end(), [&name](const Model *m) {
-            return m->name_ == name;
-          }) != models_.end()) {
-        throw YAMLException("Model with name " + Q(name) + " already exists");
-      }
-
-      LoadModel(models_path_ + "/" + path, ns, name, pose);
+      LoadModel(path, ns, name, pose);
     }
   }
 }
@@ -298,24 +331,22 @@ void World::LoadWorldPlugins(YamlReader &world_plugin_reader, World *world,
 }
 void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                       const std::string &name, const Pose &pose) {
-  // If the model is already loaded, move the model instead
-  if (std::find_if(models_.begin(), models_.end(), [&name](const Model *m) {
-        return m->name_ == name;
-      }) != models_.end()) {
-    MoveModel(name, pose);
-    return;
+  // ensure no duplicate model names
+  if (std::count_if(models_.begin(), models_.end(),
+                    [&](Model *m) { return m->name_ == name; }) >= 1) {
+    throw YAMLException("Model with name " + Q(name) + " already exists");
   }
 
   boost::filesystem::path abs_path(model_yaml_path);
   if (model_yaml_path.front() != '/') {
-    abs_path = models_path_ / abs_path;
+    abs_path = world_yaml_dir_ / abs_path;
   }
 
   ROS_INFO_NAMED("World", "Loading model from path=\"%s\"",
                  abs_path.string().c_str());
 
-  Model *m = Model::MakeModel(this, physics_world_, &cfr_, abs_path.string(),
-                              ns, name);
+  Model *m =
+      Model::MakeModel(world_id_, &cfr_, abs_path.string(), ns, name);
   m->TransformAll(pose);
 
   try {
@@ -338,9 +369,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
   visualization_msgs::MarkerArray body_markers;
   for (size_t i = 0; i < m->bodies_.size(); i++) {
     DebugVisualization::Get().BodyToMarkers(
-        body_markers, m->bodies_[i]->physics_body_, m->bodies_[i]->color_.r,
-        m->bodies_[i]->color_.g, m->bodies_[i]->color_.b,
-        m->bodies_[i]->color_.a);
+        body_markers, m->bodies_[i]->physics_body_, 1.0, 0.0, 0.0, 1.0);
   }
   int_marker_manager_.createInteractiveMarker(name, pose, body_markers);
 
@@ -368,17 +397,6 @@ void World::DeleteModel(const std::string &name) {
     throw Exception("Flatland World: failed to delete model, model with name " +
                     Q(name) + " does not exist");
   }
-}
-
-const Model *World::GetModel(const std::string &name) {
-  for (const auto &model : models_) {
-    if (model->GetName() == name) {
-      return model;
-    }
-  }
-
-  throw Exception("Flatland World: failed to find model, model with name " +
-                  Q(name) + " does not exist");
 }
 
 void World::MoveModel(const std::string &name, const Pose &pose) {

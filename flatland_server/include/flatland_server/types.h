@@ -44,7 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <geometry_msgs/Pose2D.h>
 
 #ifndef FLATLAND_SERVER_TYPES_H
@@ -63,7 +63,7 @@ struct Vec2 {
 
   Vec2() : x(0), y(0) {}
 
-  b2Vec2 Box2D() const { return b2Vec2(x, y); }
+  b2Vec2 Box2D() const { return {(float)x, (float)y}; }
 };
 
 struct LineSegment {
@@ -95,7 +95,7 @@ struct Pose {
   Pose(const std::array<double, 3> &p) {
     this->x = p[0];
     this->y = p[1];
-    this->theta = p[2];
+    this->theta = p[3];
   }
 
   Pose() : x(0), y(0), theta(0) {}

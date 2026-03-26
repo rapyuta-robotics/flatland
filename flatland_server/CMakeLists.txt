@@ -1,10 +1,9 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.11)
 project(flatland_server)
 
-# Ensure we're using c++11
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O3")
-
-set(CMAKE_BUILD_TYPE RelWithDebInfo)
+# Flatland server uses C++17
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -42,8 +41,35 @@ find_package(Lua 5.1 QUIET)
 find_package(OpenCV REQUIRED)
 
 # Boost
-find_package(Boost REQUIRED COMPONENTS date_time system filesystem)
-find_package(Threads REQUIRED)
+find_package(Boost REQUIRED COMPONENTS date_time system thread)
+find_package(Threads)
+
+# Box2D v3 + enkiTS via FetchContent
+include(FetchContent)
+
+FetchContent_Declare(
+  box2d
+  GIT_REPOSITORY https://github.com/erincatto/box2d.git
+  GIT_TAG        v3.1.0
+)
+# Disable Box2D samples/tests/benchmarks to avoid needing OpenGL
+set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+# Build dependencies with PIC for shared library linking
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+FetchContent_MakeAvailable(box2d)
+# Box2D v3.1.0 distance.c triggers -Werror=maybe-uninitialized on GCC (false positive)
+target_compile_options(box2d PRIVATE -Wno-maybe-uninitialized)
+
+FetchContent_Declare(
+  enkiTS
+  GIT_REPOSITORY https://github.com/dougbinks/enkiTS.git
+  GIT_TAG        v1.11
+)
+FetchContent_MakeAvailable(enkiTS)
+# enkiTS uses include_directories() which doesn't propagate; add explicitly
+include_directories(${enkits_SOURCE_DIR}/src)
 
 ##############
 ## coverage ##
@@ -60,8 +86,8 @@ endif()
 ## catkin specific configuration ##
 ###################################
 catkin_package(
-  INCLUDE_DIRS include thirdparty
-  LIBRARIES flatland_lib flatland_Box2D
+  INCLUDE_DIRS include ${box2d_SOURCE_DIR}/include ${enkits_SOURCE_DIR}/src
+  LIBRARIES flatland_lib
   CATKIN_DEPENDS pluginlib roscpp std_msgs tf2 visualization_msgs tf2_geometry_msgs geometry_msgs
   DEPENDS OpenCV YAML_CPP
 )
@@ -71,17 +97,13 @@ catkin_package(
 ###########
 
 include_directories(
-  thirdparty
   include
-  thirdparty/Clipper2Lib/CPP/Clipper2Lib/include
   ${catkin_INCLUDE_DIRS}
   ${YAML_CPP_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${LUA_INCLUDE_DIR}
 )
-
-add_subdirectory("thirdparty/Box2D")
 
 ## Flatland server library
 add_library(flatland_lib
@@ -106,7 +128,8 @@ add_library(flatland_lib
   src/dummy_model_plugin.cpp 
   src/dummy_world_plugin.cpp
   src/yaml_preprocessor.cpp
-  src/message_server.cpp)
+  src/message_server.cpp
+)
 
 add_dependencies(flatland_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(flatland_lib
@@ -114,8 +137,8 @@ target_link_libraries(flatland_lib
   ${OpenCV_LIBRARIES}
   ${Boost_LIBRARIES}
   ${LUA_LIBRARIES}
-  Threads::Threads
-  flatland_Box2D
+  box2d
+  enkiTS
   yaml-cpp
 )
 
@@ -134,28 +157,11 @@ target_link_libraries(flatland_server
   ${OpenCV_LIBRARIES}
   ${Boost_LIBRARIES}
   ${LUA_LIBRARIES}
-  Threads::Threads
-  flatland_Box2D
+  box2d
+  enkiTS
   yaml-cpp
   flatland_lib
 )
-
-## Add benchmark non-installed binary
-add_executable(flatland_benchmark src/flatland_benchmark.cpp)
-add_dependencies(flatland_benchmark ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-target_link_libraries(flatland_benchmark
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-  ${Boost_LIBRARIES}
-  ${LUA_LIBRARIES}
-  Threads::Threads
-  flatland_Box2D
-  yaml-cpp
-  flatland_lib
-)
-
 
 #############
 ## Install ##
@@ -184,6 +190,16 @@ install(DIRECTORY include/${PROJECT_NAME}/
   FILES_MATCHING PATTERN "*.h"
 )
 
+# Install enkiTS headers alongside flatland_server headers.
+# world.h includes "TaskScheduler.h" with a relative include, so these must be
+# co-located with the installed flatland_server headers.
+install(FILES
+  ${enkits_SOURCE_DIR}/src/TaskScheduler.h
+  ${enkits_SOURCE_DIR}/src/LockLessMultiReadPipe.h
+  include/${PROJECT_NAME}/message_server.h
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
+
 # Install launchfiles
 install(DIRECTORY launch
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
@@ -196,10 +212,6 @@ install(DIRECTORY test/conestogo_office_test
 # Install plugins file
 install(FILES flatland_plugins.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
-
-install(PROGRAMS scripts/map_to_lines.py
-    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 #############

@@ -77,7 +77,7 @@ class TestPlugin : public ModelPlugin {
 class UpdateTimerTest : public ::testing::Test {
  public:
   boost::filesystem::path this_file_dir;
-  boost::filesystem::path world_yaml_path;
+  boost::filesystem::path world_yaml;
   double set_rate;
   double expected_rate;
   double actual_rate;
@@ -99,10 +99,8 @@ class UpdateTimerTest : public ::testing::Test {
 
   void ExecuteRateTest() {
     Timekeeper timekeeper;
-    w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
-                         world_yaml_path.string(),
-                         world_yaml_path.string() + "world_plugins.yaml");
-    w->LoadWorldEntities();
+    w = World::MakeWorld(world_yaml.string());
+
     // artificially load a plugin
     boost::shared_ptr<TestPlugin> p(new TestPlugin());
     p->Initialize("TestPlugin", "test_plugin", w->models_[0], YAML::Node());
@@ -130,7 +128,7 @@ class UpdateTimerTest : public ::testing::Test {
  * Test update rate at real time factor > 1
  */
 TEST_F(UpdateTimerTest, rate_test_A) {
-  world_yaml_path = this_file_dir / fs::path("update_timer_test/");
+  world_yaml = this_file_dir / fs::path("update_timer_test/world.yaml");
   set_rate = 141.56;
   expected_rate = set_rate;
   sim_test_time = 2.0;
@@ -148,7 +146,7 @@ TEST_F(UpdateTimerTest, rate_test_A) {
  * Test update rate at real time factor < 1
  */
 TEST_F(UpdateTimerTest, rate_test_B) {
-  world_yaml_path = this_file_dir / fs::path("update_timer_test/");
+  world_yaml = this_file_dir / fs::path("update_timer_test/world.yaml");
   set_rate = 564.56;
   expected_rate = set_rate;
   sim_test_time = 1.0;
@@ -166,7 +164,7 @@ TEST_F(UpdateTimerTest, rate_test_B) {
  * Test update rate at real time factor >> 1
  */
 TEST_F(UpdateTimerTest, rate_test_C) {
-  world_yaml_path = this_file_dir / fs::path("update_timer_test/");
+  world_yaml = this_file_dir / fs::path("update_timer_test/world.yaml");
   set_rate = 47.4;
   expected_rate = set_rate;
   sim_test_time = 2;
@@ -184,7 +182,7 @@ TEST_F(UpdateTimerTest, rate_test_C) {
  * Test update rate at update rate = inf, which will update as fast as possible
  */
 TEST_F(UpdateTimerTest, rate_test_D) {
-  world_yaml_path = this_file_dir / fs::path("update_timer_test/");
+  world_yaml = this_file_dir / fs::path("update_timer_test/world.yaml");
   set_rate = std::numeric_limits<double>::infinity();
   expected_rate = 100.0;
   sim_test_time = 2;
@@ -202,7 +200,7 @@ TEST_F(UpdateTimerTest, rate_test_D) {
  * Test update rate at update rate = 0, which will never update
  */
 TEST_F(UpdateTimerTest, rate_test_E) {
-  world_yaml_path = this_file_dir / fs::path("update_timer_test/");
+  world_yaml = this_file_dir / fs::path("update_timer_test/world.yaml");
   set_rate = 0;
   expected_rate = 0;
   sim_test_time = 2;

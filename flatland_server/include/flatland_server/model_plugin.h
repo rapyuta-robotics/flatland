@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_MODEL_PLUGIN_H
 #define FLATLAND_SERVER_MODEL_PLUGIN_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/flatland_plugin.h>
 #include <flatland_server/model.h>
 #include <flatland_server/timekeeper.h>
@@ -71,7 +71,7 @@ class ModelPlugin : public FlatlandPlugin {
   /**
    * @brief Get model
    */
-  Model *GetModel() const;
+  Model *GetModel();
 
   /**
    * @brief The method to initialize the ModelPlugin, required since Pluginlib
@@ -94,18 +94,19 @@ class ModelPlugin : public FlatlandPlugin {
    * @param[out] other_fixture The fixture from the other entity involved in the
    * collision
    * @return True or false depending on if this model is involved. If false
-   * is returned, none of the entity, this_fixture, other_fixture pointers will
+   * is returned, none of the entity, this_body, other_body pointers will
    * be populated
    */
-  bool FilterContact(b2Contact *contact, Entity *&entity,
-                     b2Fixture *&this_fixture, b2Fixture *&other_fixture);
+  bool FilterContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB, Entity *&entity,
+                     b2BodyId &this_body, b2BodyId &other_body);
 
   /**
    * @brief Helper function check if this model is part of the contact
-   * @param[in] contact Box2D contact
+   * @param[in] shapeIdA First shape in contact
+   * @param[in] shapeIdB Second shape in contact
    * @return True or false depending on if this model is involved
    */
-  bool FilterContact(b2Contact *contact);
+  bool FilterContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB);
 
  protected:
   /**

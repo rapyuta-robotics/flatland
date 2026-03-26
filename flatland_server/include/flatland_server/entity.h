@@ -47,7 +47,7 @@
 #ifndef FLATLAND_SERVER_ENTITY_H
 #define FLATLAND_SERVER_ENTITY_H
 
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <flatland_server/yaml_reader.h>
 #include <yaml-cpp/yaml.h>
 
@@ -63,15 +63,15 @@ class Entity {
   /// Defines the type of entity
   enum EntityType { LAYER, MODEL };
 
-  b2World *physics_world_;  ///< Box2D physics world
-  std::string name_;        ///< name of the entity
+  b2WorldId physics_world_;  ///< Box2D v3 world ID
+  std::string name_;         ///< name of the entity
 
   /**
    * @brief Constructor for the entity
-   * @param[in] physics_world Box2D physics_world
+   * @param[in] physics_world Box2D v3 world ID
    * @param[in] name name of the entity
    */
-  Entity(b2World *physics_world, const std::string &name);
+  Entity(b2WorldId physics_world, const std::string &name);
   virtual ~Entity() = default;
 
   /**
@@ -84,7 +84,7 @@ class Entity {
    * @return Pointer to Box2D physics world, use this to call Box2D world
    * methods
    */
-  b2World *GetPhysicsWorld();
+  b2WorldId GetPhysicsWorld();
 
   /// This class should be non-copyable. This will cause the destructor to be
   /// called twice for a given b2Body

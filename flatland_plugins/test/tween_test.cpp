@@ -58,7 +58,7 @@ using namespace flatland_plugins;
 class TweenPluginTest : public ::testing::Test {
  public:
   boost::filesystem::path this_file_dir;
-  boost::filesystem::path world_yaml_path;
+  boost::filesystem::path world_yaml;
 
   void SetUp() override {
     this_file_dir = boost::filesystem::path(__FILE__).parent_path();
@@ -82,35 +82,32 @@ class TweenPluginTest : public ::testing::Test {
  * Test the tween plugin handles oneshot
  */
 TEST_F(TweenPluginTest, once_test) {
-  world_yaml_path = this_file_dir / fs::path("tween_tests/");
+  world_yaml = this_file_dir / fs::path("tween_tests/once.world.yaml");
 
   Timekeeper timekeeper;
   timekeeper.SetMaxStepSize(0.5);
-  World* w = World::MakeWorld(
-      world_yaml_path.string() + "once.world.yaml", world_yaml_path.string(),
-      world_yaml_path.string() + "once.world_plugins.yaml");
-  w->LoadWorldEntities();
+  World* w = World::MakeWorld(world_yaml.string());
 
   Tween* tween =
       dynamic_cast<Tween*>(w->plugin_manager_.model_plugins_[0].get());
 
   Body* b = tween->body_;
 
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 2.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 1.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 2.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 1.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 2.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 2.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 1.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 2.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 2.5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 1.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 3.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 4.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 2.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 3.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 4.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 2.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 3.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 4.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 2.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 3.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 4.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 2.0));
 
   delete w;
 }
@@ -119,43 +116,40 @@ TEST_F(TweenPluginTest, once_test) {
  * Test that the tween plugin yoyos
  */
 TEST_F(TweenPluginTest, yoyo_test) {
-  world_yaml_path = this_file_dir / fs::path("tween_tests/");
+  world_yaml = this_file_dir / fs::path("tween_tests/yoyo.world.yaml");
 
   Timekeeper timekeeper;
   timekeeper.SetMaxStepSize(0.5);
-  World* w = World::MakeWorld(
-      world_yaml_path.string() + "yoyo.world.yaml", world_yaml_path.string(),
-      world_yaml_path.string() + "yoyo.world_plugins.yaml");
-  w->LoadWorldEntities();
+  World* w = World::MakeWorld(world_yaml.string());
 
   Tween* tween =
       dynamic_cast<Tween*>(w->plugin_manager_.model_plugins_[0].get());
 
   Body* b = tween->body_;
 
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 0.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 0.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 0.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.5));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 10.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 10.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 1.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 10.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 10.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 1.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.5));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 0.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 0.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 0.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.5));
   w->Update(timekeeper);
 
   delete w;
@@ -165,44 +159,41 @@ TEST_F(TweenPluginTest, yoyo_test) {
  * Test that the tween plugin loops
  */
 TEST_F(TweenPluginTest, loop_test) {
-  world_yaml_path = this_file_dir / fs::path("tween_tests/");
+  world_yaml = this_file_dir / fs::path("tween_tests/loop.world.yaml");
 
   Timekeeper timekeeper;
   timekeeper.SetMaxStepSize(0.5);
-  World* w = World::MakeWorld(
-      world_yaml_path.string() + "loop.world.yaml", world_yaml_path.string(),
-      world_yaml_path.string() + "loop.world_plugins.yaml");
-  w->LoadWorldEntities();
+  World* w = World::MakeWorld(world_yaml.string());
 
   Tween* tween =
       dynamic_cast<Tween*>(w->plugin_manager_.model_plugins_[0].get());
 
   Body* b = tween->body_;
 
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 0.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 0.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 0.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 0.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 2.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 2.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.25));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 2.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 2.5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.25));
   w->Update(timekeeper);
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 7.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 7.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.75));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 7.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 7.5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.75));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 10));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 10));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 1.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 10));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 10));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 1.0));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 2.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 2.5));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.25));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 2.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 2.5));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.25));
   w->Update(timekeeper);
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().x, 5.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetPosition().y, 5.0));
-  ASSERT_TRUE(fltcmp(b->physics_body_->GetAngle(), 0.5));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).x, 5.0));
+  ASSERT_TRUE(fltcmp(b2Body_GetPosition(b->physics_body_).y, 5.0));
+  ASSERT_TRUE(fltcmp(b2Rot_GetAngle(b2Body_GetRotation(b->physics_body_)), 0.5));
   w->Update(timekeeper);
 
   delete w;

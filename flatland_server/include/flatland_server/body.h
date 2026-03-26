@@ -60,12 +60,12 @@ namespace flatland_server {
  */
 class Body {
  public:
-  Entity *entity_;         ///< The entity the body belongs to
-  std::string name_;       ///< name of the body, unique within a model
-  b2Body *physics_body_;   ///< Box2D physics body
-  Color color_;            ///< color, for visualization
-  YAML::Node properties_;  ///< Properties document for plugins to use
-  Pose parent_transform_;  ///< Transform relative to parent
+  Entity *entity_;              ///< The entity the body belongs to
+  std::string name_;            ///< name of the body, unique within a model
+  b2BodyId physics_body_;       ///< Box2D v3 physics body ID
+  Color color_;                 ///< color, for visualization
+  YAML::Node properties_;       ///< Properties document for plugins to use
+  Pose parent_transform_;       ///< Initial pose (offset from parent entity)
 
   /**
    * @brief constructor for body, takes in all the required parameters
@@ -79,7 +79,7 @@ class Body {
    * @param[in] linear_damping Box2D body linear damping
    * @param[in] angular_damping Box2D body angular damping
    */
-  Body(b2World *physics_world, Entity *entity, const std::string &name,
+  Body(b2WorldId physics_world, Entity *entity, const std::string &name,
        const Color &color, const Pose &pose, b2BodyType body_type,
        const YAML::Node &properties, double linear_damping = 0,
        double angular_damping = 0);
@@ -104,13 +104,20 @@ class Body {
    * through the Box2D methods
    * @return Pointer to Box2D physics body
    */
-  b2Body *GetPhysicsBody();
+  b2BodyId GetPhysicsBody();
+
+  /**
+   * @brief Get the initial pose (parent transform) of this body, as set at
+   * construction. Used to compute static sensor-to-body transforms.
+   * @return Initial pose {x, y, theta}
+   */
+  const Pose &GetParentTransform() const { return parent_transform_; }
 
   /**
    * @brief Count the number of fixtures
    * @return number of fixtures in the body
    */
-  int GetFixturesCount() const;
+  int GetShapesCount() const;
 
   /**
    * @return Color of the body
@@ -121,11 +128,6 @@ class Body {
    * @brief Set of the color of the body
    */
   void SetColor(const Color &color);
-
-  /**
-   * @brief Get the parent transform
-   */
-  const Pose &GetParentTransform() const;
 
   /**
    * Destructor for the body

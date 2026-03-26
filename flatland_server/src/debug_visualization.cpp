@@ -45,7 +45,7 @@
  */
 
 #include "flatland_server/debug_visualization.h"
-#include <Box2D/Box2D.h>
+#include <box2d/box2d.h>
 #include <ros/master.h>
 #include <ros/ros.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -66,10 +66,10 @@ DebugVisualization& DebugVisualization::Get() {
 }
 
 void DebugVisualization::JointToMarkers(
-    visualization_msgs::MarkerArray& markers, b2Joint* joint, float r, float g,
-    float b, float a) {
-  if (joint->GetType() == e_distanceJoint ||
-      joint->GetType() == e_pulleyJoint || joint->GetType() == e_mouseJoint) {
+    visualization_msgs::MarkerArray& markers, b2JointId joint, float r,
+    float g, float b, float a) {
+  b2JointType jtype = b2Joint_GetType(joint);
+  if (jtype == b2_distanceJoint || jtype == b2_mouseJoint) {
     ROS_ERROR_NAMED("DebugVis",
                     "Unimplemented visualization joints. See b2World.cpp for "
                     "implementation");
@@ -85,25 +85,31 @@ void DebugVisualization::JointToMarkers(
   marker.type = marker.LINE_LIST;
   marker.scale.x = 0.01;
 
-  geometry_msgs::Point p_a1, p_a2, p_b1, p_b2;
-  p_a1.x = joint->GetAnchorA().x;
-  p_a1.y = joint->GetAnchorA().y;
-  p_a2.x = joint->GetAnchorB().x;
-  p_a2.y = joint->GetAnchorB().y;
-  p_b1.x = joint->GetBodyA()->GetPosition().x;
-  p_b1.y = joint->GetBodyA()->GetPosition().y;
-  p_b2.x = joint->GetBodyB()->GetPosition().x;
-  p_b2.y = joint->GetBodyB()->GetPosition().y;
+  b2BodyId bodyA = b2Joint_GetBodyA(joint);
+  b2BodyId bodyB = b2Joint_GetBodyB(joint);
+  b2Vec2 posA = b2Body_GetPosition(bodyA);
+  b2Vec2 posB = b2Body_GetPosition(bodyB);
 
-  // Visualization shows lines from bodyA to anchorA, bodyB to anchorB, and
-  // anchorA to anchorB
+  // Compute world anchor points from local anchors (weld joint only for now)
+  b2Vec2 localAnchorA = b2Joint_GetLocalAnchorA(joint);
+  b2Vec2 localAnchorB = b2Joint_GetLocalAnchorB(joint);
+  b2Vec2 worldAnchorA = b2TransformPoint(b2Body_GetTransform(bodyA), localAnchorA);
+  b2Vec2 worldAnchorB = b2TransformPoint(b2Body_GetTransform(bodyB), localAnchorB);
+
+  geometry_msgs::Point p_bodyA, p_anchorA, p_bodyB, p_anchorB;
+  p_bodyA.x = posA.x; p_bodyA.y = posA.y;
+  p_anchorA.x = worldAnchorA.x; p_anchorA.y = worldAnchorA.y;
+  p_bodyB.x = posB.x; p_bodyB.y = posB.y;
+  p_anchorB.x = worldAnchorB.x; p_anchorB.y = worldAnchorB.y;
+
+  // Lines: bodyA->anchorA, bodyB->anchorB, anchorA->anchorB
   marker.id = markers.markers.size();
-  marker.points.push_back(p_b1);
-  marker.points.push_back(p_a1);
-  marker.points.push_back(p_b2);
-  marker.points.push_back(p_a2);
-  marker.points.push_back(p_a1);
-  marker.points.push_back(p_a2);
+  marker.points.push_back(p_bodyA);
+  marker.points.push_back(p_anchorA);
+  marker.points.push_back(p_bodyB);
+  marker.points.push_back(p_anchorB);
+  marker.points.push_back(p_anchorA);
+  marker.points.push_back(p_anchorB);
 
   markers.markers.push_back(marker);
 
@@ -111,19 +117,27 @@ void DebugVisualization::JointToMarkers(
   marker.type = marker.CUBE_LIST;
   marker.scale.x = marker.scale.y = marker.scale.z = 0.03;
   marker.points.clear();
-  marker.points.push_back(p_a1);
-  marker.points.push_back(p_a2);
-  marker.points.push_back(p_b1);
-  marker.points.push_back(p_b2);
+  marker.points.push_back(p_anchorA);
+  marker.points.push_back(p_anchorB);
+  marker.points.push_back(p_bodyA);
+  marker.points.push_back(p_bodyB);
   markers.markers.push_back(marker);
 }
 
 void DebugVisualization::BodyToMarkers(visualization_msgs::MarkerArray& markers,
-                                       b2Body* body, float r, float g, float b,
-                                       float a) {
-  b2Fixture* fixture = body->GetFixtureList();
+                                       b2BodyId body, float r, float g,
+                                       float b, float a) {
+  int shape_count = b2Body_GetShapeCount(body);
+  if (shape_count == 0) return;
 
-  while (fixture != NULL) {  // traverse fixture linked list
+  std::vector<b2ShapeId> shapes(shape_count);
+  b2Body_GetShapes(body, shapes.data(), shape_count);
+
+  b2Vec2 pos = b2Body_GetPosition(body);
+  float angle = b2Rot_GetAngle(b2Body_GetRotation(body));
+
+  for (int si = 0; si < shape_count; si++) {
+    b2ShapeId shape = shapes[si];
     visualization_msgs::Marker marker;
     marker.header.frame_id = "map";
     marker.id = markers.markers.size();
@@ -131,117 +145,71 @@ void DebugVisualization::BodyToMarkers(visualization_msgs::MarkerArray& markers,
     marker.color.g = g;
     marker.color.b = b;
     marker.color.a = a;
-    marker.pose.position.x = body->GetPosition().x;
-    marker.pose.position.y = body->GetPosition().y;
-    tf2::Quaternion q;  // use tf2 to convert 2d yaw -> 3d quaternion
-    q.setRPY(0, 0, body->GetAngle());  // from euler angles: roll, pitch, yaw
+    marker.pose.position.x = pos.x;
+    marker.pose.position.y = pos.y;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, angle);
     marker.pose.orientation = tf2::toMsg(q);
     bool add_marker = true;
 
-    // Get the shape from the fixture
-    switch (fixture->GetType()) {
-      case b2Shape::e_circle: {
-        b2CircleShape* circle = (b2CircleShape*)fixture->GetShape();
+    b2ShapeType stype = b2Shape_GetType(shape);
+    if (stype == b2_circleShape) {
+      b2Circle circle = b2Shape_GetCircle(shape);
 
-        marker.type = marker.SPHERE_LIST;
-        float diameter = circle->m_radius * 2.0;
-        marker.scale.z = 0.01;
-        marker.scale.x = diameter;
-        marker.scale.y = diameter;
+      marker.type = marker.SPHERE_LIST;
+      float diameter = circle.radius * 2.0f;
+      marker.scale.z = 0.01;
+      marker.scale.x = diameter;
+      marker.scale.y = diameter;
 
+      geometry_msgs::Point p;
+      p.x = circle.center.x;
+      p.y = circle.center.y;
+      marker.points.push_back(p);
+
+    } else if (stype == b2_polygonShape) {
+      b2Polygon poly = b2Shape_GetPolygon(shape);
+      marker.type = marker.LINE_STRIP;
+      marker.scale.x = 0.03;
+
+      for (int i = 0; i < poly.count; i++) {
         geometry_msgs::Point p;
-        p.x = circle->m_p.x;
-        p.y = circle->m_p.y;
+        p.x = poly.vertices[i].x;
+        p.y = poly.vertices[i].y;
         marker.points.push_back(p);
+      }
+      if (poly.count > 0) marker.points.push_back(marker.points[0]);
 
-      } break;
+    } else if (stype == b2_segmentShape) {
+      b2Segment seg = b2Shape_GetSegment(shape);
+      geometry_msgs::Point p;
 
-      case b2Shape::e_polygon: {  // Currently only
-        b2PolygonShape* poly = (b2PolygonShape*)fixture->GetShape();
-        marker.type = marker.TRIANGLE_LIST;
-
-        geometry_msgs::Point p1;
-        p1.x = poly->m_vertices[0].x;
-        p1.y = poly->m_vertices[0].y;
-
-        for (int i = 1; i < poly->m_count - 1; i++) {
-          geometry_msgs::Point p2;
-          p2.x = poly->m_vertices[i].x;
-          p2.y = poly->m_vertices[i].y;
-          geometry_msgs::Point p3;
-          p3.x = poly->m_vertices[i + 1].x;
-          p3.y = poly->m_vertices[i + 1].y;
-
-          marker.points.push_back(p1);
-          marker.points.push_back(p2);
-          marker.points.push_back(p3);
-        }
-
-      } break;
-
-      case b2Shape::e_edge: {    // Convert b2Edge -> LINE_LIST
-        geometry_msgs::Point p;  // b2Edge uses vertex1 and 2 for its edges
-        b2EdgeShape* edge = (b2EdgeShape*)fixture->GetShape();
-
-        // If the last marker is a line list, extend it
-        if (markers.markers.size() > 0 &&
-            markers.markers.back().type == marker.LINE_LIST) {
-          add_marker = false;
-          p.x = edge->m_vertex1.x;
-          p.y = edge->m_vertex1.y;
-          markers.markers.back().points.push_back(p);
-          p.x = edge->m_vertex2.x;
-          p.y = edge->m_vertex2.y;
-          markers.markers.back().points.push_back(p);
-
-        } else {  // otherwise create a new line list
-
-          marker.type = marker.LINE_LIST;
-          marker.scale.x = 0.03;  // 3cm wide lines
-
-          p.x = edge->m_vertex1.x;
-          p.y = edge->m_vertex1.y;
-          marker.points.push_back(p);
-          p.x = edge->m_vertex2.x;
-          p.y = edge->m_vertex2.y;
-          marker.points.push_back(p);
-        }
-
-      } break;
-
-      case b2Shape::e_chain: {
-
-        geometry_msgs::Point p;  // b2Edge uses vertex1 and 2 for its edges
-        b2ChainShape* chain = (b2ChainShape*)fixture->GetShape();
-
-        add_marker = true;  
-        marker.type = marker.LINE_STRIP;
-        marker.scale.x = 0.03;  // 3cm wide lines
-        
-        for(int i=0; i<chain->m_count; i++) {
-          p.x = chain->m_vertices[i].x;
-          p.y = chain->m_vertices[i].y;
-          marker.points.push_back(p);
-        }
-
-        // close loop
-        p.x = chain->m_vertices[0].x;
-        p.y = chain->m_vertices[0].y;
+      // If the last marker is a line list, extend it
+      if (markers.markers.size() > 0 &&
+          markers.markers.back().type == marker.LINE_LIST) {
+        add_marker = false;
+        p.x = seg.point1.x; p.y = seg.point1.y;
+        markers.markers.back().points.push_back(p);
+        p.x = seg.point2.x; p.y = seg.point2.y;
+        markers.markers.back().points.push_back(p);
+      } else {
+        marker.type = marker.LINE_LIST;
+        marker.scale.x = 0.03;
+        p.x = seg.point1.x; p.y = seg.point1.y;
         marker.points.push_back(p);
-      } break;
+        p.x = seg.point2.x; p.y = seg.point2.y;
+        marker.points.push_back(p);
+      }
 
-      default:  // Unsupported shape
-        ROS_WARN_THROTTLE_NAMED(1.0, "DebugVis", "Unsupported Box2D shape %d",
-                                static_cast<int>(fixture->GetType()));
-        fixture = fixture->GetNext();
-        continue;  // Do not add broken marker
-        break;
+    } else {
+      ROS_WARN_THROTTLE_NAMED(1.0, "DebugVis", "Unsupported Box2D shape type %d",
+                              static_cast<int>(stype));
+      continue;
     }
 
     if (add_marker) {
-      markers.markers.push_back(marker);  // Add the new marker
+      markers.markers.push_back(marker);
     }
-    fixture = fixture->GetNext();  // Traverse the linked list of fixtures
   }
 }
 
@@ -281,12 +249,18 @@ void DebugVisualization::Publish(const Timekeeper& timekeeper) {
 void DebugVisualization::VisualizeLayer(std::string name, Body* body) {
   AddTopicIfNotExist(name);
 
-  b2Fixture* fixture = body->physics_body_->GetFixtureList();
+  int shape_count = b2Body_GetShapeCount(body->physics_body_);
 
   visualization_msgs::Marker marker;
-  if (fixture == NULL) return;  // Nothing to visualize, empty linked list
+  if (shape_count == 0) return;
 
-  while (fixture != NULL) {  // traverse fixture linked list
+  std::vector<b2ShapeId> shapes(shape_count);
+  b2Body_GetShapes(body->physics_body_, shapes.data(), shape_count);
+
+  for (int si = 0; si < shape_count; si++) {
+    b2ShapeId shape = shapes[si];
+    if (b2Shape_GetType(shape) != b2_segmentShape) continue;  // layer only has segments
+    b2Segment seg = b2Shape_GetSegment(shape);
 
     marker.header.frame_id = "map";
     marker.id = topics_[name].markers.markers.size();
@@ -296,14 +270,14 @@ void DebugVisualization::VisualizeLayer(std::string name, Body* body) {
     marker.color.a = body->color_.a;
     marker.scale.x = marker.scale.y = marker.scale.z = 1.0;
     marker.frame_locked = true;
-    marker.pose.position.x = body->physics_body_->GetPosition().x;
-    marker.pose.position.y = body->physics_body_->GetPosition().y;
+    marker.pose.position.x = b2Body_GetPosition(body->physics_body_).x;
+    marker.pose.position.y = b2Body_GetPosition(body->physics_body_).y;
 
-    tf2::Quaternion q;  // use tf2 to convert 2d yaw -> 3d quaternion
-    q.setRPY(0, 0, body->physics_body_
-                       ->GetAngle());  // from euler angles: roll, pitch, yaw
+    tf2::Quaternion q;
+    q.setRPY(0, 0, b2Rot_GetAngle(b2Body_GetRotation(body->physics_body_)));
     marker.pose.orientation = tf2::toMsg(q);
     marker.type = marker.TRIANGLE_LIST;
+    marker.points.clear();
 
     YamlReader reader(body->properties_);
     YamlReader debug_reader =
@@ -311,53 +285,33 @@ void DebugVisualization::VisualizeLayer(std::string name, Body* body) {
     float min_z = debug_reader.Get<float>("min_z", 0.0);
     float max_z = debug_reader.Get<float>("max_z", 1.0);
 
-    // Get the shape from the fixture
-    if (fixture->GetType() == b2Shape::e_edge) {
-      geometry_msgs::Point p;  // b2Edge uses vertex1 and 2 for its edges
-      b2EdgeShape* edge = (b2EdgeShape*)fixture->GetShape();
+    geometry_msgs::Point p;
+    p.x = seg.point1.x; p.y = seg.point1.y; p.z = min_z;
+    marker.points.push_back(p);
+    p.x = seg.point2.x; p.y = seg.point2.y; p.z = min_z;
+    marker.points.push_back(p);
+    p.x = seg.point2.x; p.y = seg.point2.y; p.z = max_z;
+    marker.points.push_back(p);
+    p.x = seg.point1.x; p.y = seg.point1.y; p.z = min_z;
+    marker.points.push_back(p);
+    p.x = seg.point2.x; p.y = seg.point2.y; p.z = max_z;
+    marker.points.push_back(p);
+    p.x = seg.point1.x; p.y = seg.point1.y; p.z = max_z;
+    marker.points.push_back(p);
 
-      p.x = edge->m_vertex1.x;
-      p.y = edge->m_vertex1.y;
-      p.z = min_z;
-      marker.points.push_back(p);
-      p.x = edge->m_vertex2.x;
-      p.y = edge->m_vertex2.y;
-      p.z = min_z;
-      marker.points.push_back(p);
-      p.x = edge->m_vertex2.x;
-      p.y = edge->m_vertex2.y;
-      p.z = max_z;
-      marker.points.push_back(p);
-
-      p.x = edge->m_vertex1.x;
-      p.y = edge->m_vertex1.y;
-      p.z = min_z;
-      marker.points.push_back(p);
-      p.x = edge->m_vertex2.x;
-      p.y = edge->m_vertex2.y;
-      p.z = max_z;
-      marker.points.push_back(p);
-      p.x = edge->m_vertex1.x;
-      p.y = edge->m_vertex1.y;
-      p.z = max_z;
-      marker.points.push_back(p);
-    }
-
-    fixture = fixture->GetNext();  // Traverse the linked list of fixtures
+    topics_[name].markers.markers.push_back(marker);
   }
-
-  topics_[name].markers.markers.push_back(marker);  // Add the new marker
   topics_[name].needs_publishing = true;
 }
 
-void DebugVisualization::Visualize(std::string name, b2Body* body, float r,
+void DebugVisualization::Visualize(std::string name, b2BodyId body, float r,
                                    float g, float b, float a) {
   AddTopicIfNotExist(name);
   BodyToMarkers(topics_[name].markers, body, r, g, b, a);
   topics_[name].needs_publishing = true;
 }
 
-void DebugVisualization::Visualize(std::string name, b2Joint* joint, float r,
+void DebugVisualization::Visualize(std::string name, b2JointId joint, float r,
                                    float g, float b, float a) {
   AddTopicIfNotExist(name);
   JointToMarkers(topics_[name].markers, joint, r, g, b, a);

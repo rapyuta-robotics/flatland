@@ -62,7 +62,7 @@ using namespace flatland_msgs;
 class BumperPluginTest : public ::testing::Test {
  public:
   boost::filesystem::path this_file_dir;
-  boost::filesystem::path world_yaml_path;
+  boost::filesystem::path world_yaml;
   flatland_msgs::Collisions msg1, msg2;
   World* w;
 
@@ -182,14 +182,12 @@ class BumperPluginTest : public ::testing::Test {
  * Test the bumper plugin for a given model and plugin configuration
  */
 TEST_F(BumperPluginTest, collision_test) {
-  world_yaml_path = this_file_dir / fs::path("bumper_tests/collision_test/");
+  world_yaml =
+      this_file_dir / fs::path("bumper_tests/collision_test/world.yaml");
 
   Timekeeper timekeeper;
   timekeeper.SetMaxStepSize(0.01);
-  w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
-                       world_yaml_path.string(),
-                       world_yaml_path.string() + "world_plugins.yaml");
-  w->LoadWorldEntities();
+  w = World::MakeWorld(world_yaml.string());
 
   ros::NodeHandle nh;
   ros::Subscriber sub_1, sub_2, sub_3;
@@ -219,7 +217,7 @@ TEST_F(BumperPluginTest, collision_test) {
   for (unsigned int i = 0; i < 150; i++) {
     // Box2D needs velocity to be set every time step to ensure things are
     // moving at the desired velocity
-    b0->physics_body_->SetLinearVelocity(b2Vec2(1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -232,7 +230,7 @@ TEST_F(BumperPluginTest, collision_test) {
 
   // step another 5 times which moves 0.5 meters colliding base_link_2 as well
   for (unsigned int i = 0; i < 50; i++) {
-    b0->physics_body_->SetLinearVelocity(b2Vec2(1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -248,7 +246,7 @@ TEST_F(BumperPluginTest, collision_test) {
 
   // Now move backward far away from the wall, there collisions should clear
   for (unsigned int i = 0; i < 300; i++) {
-    b0->physics_body_->SetLinearVelocity(b2Vec2(-1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{-1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -259,11 +257,11 @@ TEST_F(BumperPluginTest, collision_test) {
 
   // Teleport the body to the other side of the wall, try hitting the wall from
   // the other direction, the collision normal vector should be flipped now
-  b0->physics_body_->SetTransform(b2Vec2(4, 0), 0);
-  b1->physics_body_->SetTransform(b2Vec2(4, 0), 0);
+  b2Body_SetTransform(b0->physics_body_, b2Vec2{4, 0}, b2MakeRot(0));
+  b2Body_SetTransform(b1->physics_body_, b2Vec2{4, 0}, b2MakeRot(0));
 
   for (unsigned int i = 0; i < 300; i++) {
-    b0->physics_body_->SetLinearVelocity(b2Vec2(-1, 0.0));
+    b2Body_SetLinearVelocity(b0->physics_body_, b2Vec2{-1, 0.0f});
     w->Update(timekeeper);
     ros::spinOnce();
   }
@@ -286,14 +284,10 @@ TEST_F(BumperPluginTest, collision_test) {
  * Test with a invalid body specified in the exclude list
  */
 TEST_F(BumperPluginTest, invalid_A) {
-  world_yaml_path = this_file_dir / fs::path("bumper_tests/invalid_A/");
+  world_yaml = this_file_dir / fs::path("bumper_tests/invalid_A/world.yaml");
 
   try {
-    w = World::MakeWorld(world_yaml_path.string() + "world.yaml",
-                         world_yaml_path.string(),
-                         world_yaml_path.string() + "world_plugins.yaml");
-    w->LoadWorldEntities();
-
+    w = World::MakeWorld(world_yaml.string());
     FAIL() << "Expected an exception, but none were raised";
   } catch (const PluginException& e) {
     std::cmatch match;

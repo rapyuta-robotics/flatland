@@ -115,7 +115,7 @@ void ModelTfPublisher::BeforePhysicsStep(const Timekeeper &timekeeper) {
   Eigen::Matrix3f rel_tf;    ///< for storing TF from ref. body to other bodies
 
   // fill the world to ref. body TF with data from Box2D
-  const b2Transform &r = reference_body_->physics_body_->GetTransform();
+  b2Transform r = b2Body_GetTransform(reference_body_->physics_body_);
   ref_tf_m << r.q.c, -r.q.s, r.p.x, r.q.s, r.q.c, r.p.y, 0, 0, 1;
 
   geometry_msgs::TransformStamped tf_stamped;
@@ -137,7 +137,7 @@ void ModelTfPublisher::BeforePhysicsStep(const Timekeeper &timekeeper) {
     }
 
     // Get transformation of body w.r.t to the world
-    const b2Transform &b = body->physics_body_->GetTransform();
+    b2Transform b = b2Body_GetTransform(body->physics_body_);
     Eigen::Matrix3f body_tf_m;
     body_tf_m << b.q.c, -b.q.s, b.p.x, b.q.s, b.q.c, b.p.y, 0, 0, 1;
 
@@ -171,8 +171,8 @@ void ModelTfPublisher::BeforePhysicsStep(const Timekeeper &timekeeper) {
 
   // publish world TF if necessary
   if (publish_tf_world_) {
-    const b2Vec2 &p = reference_body_->physics_body_->GetPosition();
-    double yaw = reference_body_->physics_body_->GetAngle();
+    b2Vec2 p = b2Body_GetPosition(reference_body_->physics_body_);
+    double yaw = b2Rot_GetAngle(b2Body_GetRotation(reference_body_->physics_body_));
 
     tf_stamped.header.frame_id = world_frame_id_;
     tf_stamped.child_frame_id =

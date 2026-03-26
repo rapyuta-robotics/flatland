@@ -77,39 +77,19 @@ PluginManager::~PluginManager() {
 
 void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
   for (const auto &model_plugin : model_plugins_) {
-    START_PROFILE(timekeeper_, "Before Physics Step: " +
-                                   model_plugin.get()->GetModel()->name_ + " " +
-                                   model_plugin.get()->name_);
     model_plugin->BeforePhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_, "Before Physics Step: " +
-                                 model_plugin.get()->GetModel()->name_ + " " +
-                                 model_plugin.get()->name_);
   }
   for (const auto &world_plugin : world_plugins_) {
-    START_PROFILE(timekeeper_,
-                  "Before Physics Step: " + world_plugin.get()->name_);
     world_plugin->BeforePhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_,
-                "Before Physics Step: " + world_plugin.get()->name_);
   }
 }
 
 void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
   for (const auto &model_plugin : model_plugins_) {
-    START_PROFILE(timekeeper_, "After Physics Step: " +
-                                   model_plugin.get()->GetModel()->name_ + " " +
-                                   model_plugin.get()->name_);
     model_plugin->AfterPhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_, "After Physics Step: " +
-                                 model_plugin.get()->GetModel()->name_ + " " +
-                                 model_plugin.get()->name_);
   }
   for (const auto &world_plugin : world_plugins_) {
-    START_PROFILE(timekeeper_,
-                  "After Physics Step: " + world_plugin.get()->name_);
     world_plugin->AfterPhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_,
-                "After Physics Step: " + world_plugin.get()->name_);
   }
 }
 
@@ -205,6 +185,7 @@ void PluginManager::LoadWorldPlugin(World *world, YamlReader &plugin_reader,
 
   boost::shared_ptr<WorldPlugin> world_plugin;
   std::string msg = "World Plugin " + Q(name) + " type " + Q(type);
+
   YAML::Node yaml_node;
   for (const auto &k : plugin_reader.Node()) {
     if (k.first.as<std::string>() != "name" &&
@@ -238,29 +219,24 @@ void PluginManager::LoadWorldPlugin(World *world, YamlReader &plugin_reader,
   ROS_INFO_NAMED("PluginManager", "%s loaded ", msg.c_str());
 }
 
-void PluginManager::BeginContact(b2Contact *contact) {
+void PluginManager::BeginContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
   for (auto &model_plugin : model_plugins_) {
-    model_plugin->BeginContact(contact);
+    model_plugin->BeginContact(shapeIdA, shapeIdB);
   }
 }
 
-void PluginManager::EndContact(b2Contact *contact) {
+void PluginManager::EndContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
   for (auto &model_plugin : model_plugins_) {
-    model_plugin->EndContact(contact);
+    model_plugin->EndContact(shapeIdA, shapeIdB);
   }
 }
 
-void PluginManager::PreSolve(b2Contact *contact,
-                             const b2Manifold *oldManifold) {
+void PluginManager::OnContactHit(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                                  b2Vec2 point, b2Vec2 normal,
+                                  float approachSpeed) {
   for (auto &model_plugin : model_plugins_) {
-    model_plugin->PreSolve(contact, oldManifold);
-  }
-}
-
-void PluginManager::PostSolve(b2Contact *contact,
-                              const b2ContactImpulse *impulse) {
-  for (auto &model_plugin : model_plugins_) {
-    model_plugin->PostSolve(contact, impulse);
+    model_plugin->OnContactHit(shapeIdA, shapeIdB, point, normal,
+                               approachSpeed);
   }
 }
 

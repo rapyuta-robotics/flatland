@@ -55,16 +55,14 @@ YamlReader::YamlReader() : node_(YAML::Node()) {
 }
 
 YamlReader::YamlReader(const YAML::Node &node) : node_(node) {
-  // note: we don't have a filename here so $include parsing will not work
-  // with relative filenames.
-  YamlPreprocessor::Parse(node_, "");
+  YamlPreprocessor::Parse(node_);
   SetErrorInfo("_NONE_", "_NONE_");
 }
 
 YamlReader::YamlReader(const std::string &path) {
   try {
     node_ = YAML::LoadFile(path);
-    YamlPreprocessor::Parse(node_, path);
+    YamlPreprocessor::Parse(node_);
   } catch (const YAML::BadFile &e) {
     throw YAMLException("File does not exist, path=" + Q(path));
 

@@ -116,11 +116,6 @@ class CollisionFilterRegistry {
   std::vector<std::string> GetAllLayers() const;
 
   /**
- * @brief Clear all registered layers
- */
-  void ClearAllLayers();
-
-  /**
    * @brief Get number of layers
    * @return number of layers
    */

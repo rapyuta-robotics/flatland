@@ -48,7 +48,7 @@
 
 namespace flatland_server {
 
-Model *ModelPlugin::GetModel() const { return model_; }
+Model *ModelPlugin::GetModel() { return model_; }
 
 void ModelPlugin::Initialize(const std::string &type, const std::string &name,
                              Model *model, const YAML::Node &config) {
@@ -60,34 +60,34 @@ void ModelPlugin::Initialize(const std::string &type, const std::string &name,
   OnInitialize(config);
 }
 
-bool ModelPlugin::FilterContact(b2Contact *contact, Entity *&entity,
-                                b2Fixture *&this_fixture,
-                                b2Fixture *&other_fixture) {
-  b2Fixture *f_A = contact->GetFixtureA();
-  b2Fixture *f_B = contact->GetFixtureB();
-  Body *b_A = static_cast<Body *>(f_A->GetBody()->GetUserData());
-  Body *b_B = static_cast<Body *>(f_B->GetBody()->GetUserData());
-  Entity *e_A = b_A->GetEntity();
-  Entity *e_B = b_B->GetEntity();
+bool ModelPlugin::FilterContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                                Entity *&entity, b2BodyId &this_body,
+                                b2BodyId &other_body) {
+  b2BodyId body_A = b2Shape_GetBody(shapeIdA);
+  b2BodyId body_B = b2Shape_GetBody(shapeIdB);
+  Body *b_A = static_cast<Body *>(b2Body_GetUserData(body_A));
+  Body *b_B = static_cast<Body *>(b2Body_GetUserData(body_B));
+  Entity *e_A = b_A ? b_A->GetEntity() : nullptr;
+  Entity *e_B = b_B ? b_B->GetEntity() : nullptr;
 
   if (e_A == model_) {
     entity = e_B;
-    this_fixture = f_A;
-    other_fixture = f_B;
+    this_body = body_A;
+    other_body = body_B;
   } else if (e_B == model_) {
     entity = e_A;
-    this_fixture = f_B;
-    other_fixture = f_A;
+    this_body = body_B;
+    other_body = body_A;
   } else {
     return false;
   }
   return true;
 }
 
-bool ModelPlugin::FilterContact(b2Contact *contact) {
-  b2Fixture *f1, *f2;
+bool ModelPlugin::FilterContact(b2ShapeId shapeIdA, b2ShapeId shapeIdB) {
+  b2BodyId b1, b2;
   Entity *e;
-  return FilterContact(contact, e, f1, f2);
+  return FilterContact(shapeIdA, shapeIdB, e, b1, b2);
 }
 
 };  // namespace flatland_server
