@@ -58,6 +58,8 @@
 namespace flatland_server {
 
 SimulationManager::SimulationManager(std::string world_yaml_file,
+                                     std::string models_path,
+                                     std::string world_plugins_path,
                                      double update_rate, double step_size,
                                      bool show_viz, double viz_pub_rate)
     : world_(nullptr),
@@ -65,11 +67,15 @@ SimulationManager::SimulationManager(std::string world_yaml_file,
       step_size_(step_size),
       show_viz_(show_viz),
       viz_pub_rate_(viz_pub_rate),
-      world_yaml_file_(world_yaml_file) {
+      world_yaml_file_(world_yaml_file),
+      models_path_(models_path),
+      world_plugins_path_(world_plugins_path) {
   ROS_INFO_NAMED("SimMan",
-                 "Simulation params: world_yaml_file(%s) update_rate(%f), "
+                 "Simulation params: world_yaml_file(%s) models_path(%s) "
+                 "world_plugins_path(%s) update_rate(%f), "
                  "step_size(%f) show_viz(%s), viz_pub_rate(%f)",
-                 world_yaml_file_.c_str(), update_rate_, step_size_,
+                 world_yaml_file_.c_str(), models_path_.c_str(),
+                 world_plugins_path_.c_str(), update_rate_, step_size_,
                  show_viz_ ? "true" : "false", viz_pub_rate_);
 }
 
@@ -78,33 +84,58 @@ void SimulationManager::Main() {
   run_simulator_ = true;
 
   try {
-    world_ = World::MakeWorld(world_yaml_file_);
+    world_ =
+        World::MakeWorld(world_yaml_file_, models_path_, world_plugins_path_);
     ROS_INFO_NAMED("SimMan", "World loaded");
   } catch (const std::exception& e) {
     ROS_FATAL_NAMED("SimMan", "%s", e.what());
     return;
   }
+  service_manager_.reset(nullptr);
 
-  if (show_viz_) world_->DebugVisualize();
+  Timekeeper timekeeper;
+  ros::WallRate rate(update_rate_);
+  timekeeper.SetMaxStepSize(step_size_);
 
   int iterations = 0;
   double filtered_cycle_util = 0;
   double min_cycle_util = std::numeric_limits<double>::infinity();
   double max_cycle_util = 0;
-  double viz_update_period = 1.0f / viz_pub_rate_;
-  ServiceManager service_manager(this, world_);
-  Timekeeper timekeeper;
+  double viz_update_period = timekeeper.GetMaxStepSize() /
+                             rate.expectedCycleTime().toSec() / viz_pub_rate_;
 
-  ros::WallRate rate(update_rate_);
-  timekeeper.SetMaxStepSize(step_size_);
-  ROS_INFO_NAMED("SimMan", "Simulation loop started");
-
+  ROS_INFO_NAMED("SimMan", "Waiting for Map");
   while (ros::ok() && run_simulator_) {
+    try {
+      world_->LoadWorldEntities();
+      if (show_viz_) {
+        world_->DebugVisualize();
+      }
+      service_manager_ =
+          std::unique_ptr<ServiceManager>(new ServiceManager(this, world_));
+      break;
+    } catch (const YAMLException& ex) {
+      std::string exception(ex.what());
+      if (exception.find("File does not exist") == std::string::npos) {
+        throw;
+      }
+      ROS_DEBUG_STREAM_THROTTLE(5, "Tried to load world yaml file "
+                                       << world_yaml_file_);
+    }
+
+    timekeeper.StepTime();
+    rate.sleep();
+  }
+
+  ROS_INFO_NAMED("SimMan", "Received Map, Simulation Loop Started");
+  while (ros::ok() && run_simulator_) {
+    START_PROFILE(timekeeper, "Total Iteration");
     // for updating visualization at a given rate
     // see flatland_plugins/update_timer.cpp for this formula
     double f = 0.0;
+    static double t_init_offset = timekeeper.GetSimTime().toSec();
     try {
-      f = fmod(ros::WallTime::now().toSec() +
+      f = fmod(timekeeper.GetSimTime().toSec() - t_init_offset +
                    (rate.expectedCycleTime().toSec() / 2.0),
                viz_update_period);
     } catch (std::runtime_error& ex) {
@@ -121,6 +152,7 @@ void SimulationManager::Main() {
     }
 
     ros::spinOnce();
+    END_PROFILE(timekeeper, "Total Iteration");
     rate.sleep();
 
     iterations++;

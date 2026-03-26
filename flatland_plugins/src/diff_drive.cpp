@@ -62,7 +62,10 @@ void DiffDrive::TwistCallback(const geometry_msgs::Twist& msg) {
 void DiffDrive::OnInitialize(const YAML::Node& config) {
   YamlReader reader(config);
   enable_odom_pub_ = reader.Get<bool>("enable_odom_pub", true);
+  enable_odom_tf_pub_ = reader.Get<bool>("enable_odom_tf_pub", true);
   enable_twist_pub_ = reader.Get<bool>("enable_twist_pub", true);
+  enable_ground_truth_pub_ = reader.Get<bool>("enable_ground_truth_pub", true);
+  twist_in_local_frame_ = reader.Get<bool>("twist_in_local_frame", true);
   std::string body_name = reader.Get<std::string>("body");
   std::string odom_frame_id = reader.Get<std::string>("odom_frame_id", "odom");
 
@@ -121,6 +124,9 @@ void DiffDrive::OnInitialize(const YAML::Node& config) {
   twist_sub_ = nh_.subscribe(twist_topic, 1, &DiffDrive::TwistCallback, this);
   if (enable_odom_pub_) {
     odom_pub_ = nh_.advertise<nav_msgs::Odometry>(odom_topic, 1);
+  }
+
+  if (enable_ground_truth_pub_) {
     ground_truth_pub_ =
         nh_.advertise<nav_msgs::Odometry>(ground_truth_topic, 1);
   }
@@ -239,8 +245,11 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
     odom_msg_.twist.twist.linear.y += noise_gen_[4](rng_);
     odom_msg_.twist.twist.angular.z += noise_gen_[5](rng_);
 
-    if (enable_odom_pub_) {
+    if (enable_ground_truth_pub_) {
       ground_truth_pub_.publish(ground_truth_msg_);
+    }
+
+    if (enable_odom_pub_) {
       odom_pub_.publish(odom_msg_);
     }
 
@@ -262,14 +271,16 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper& timekeeper) {
     }
 
     // publish odom tf
-    geometry_msgs::TransformStamped odom_tf;
-    odom_tf.header = odom_msg_.header;
-    odom_tf.child_frame_id = odom_msg_.child_frame_id;
-    odom_tf.transform.translation.x = odom_msg_.pose.pose.position.x;
-    odom_tf.transform.translation.y = odom_msg_.pose.pose.position.y;
-    odom_tf.transform.translation.z = 0;
-    odom_tf.transform.rotation = odom_msg_.pose.pose.orientation;
-    tf_broadcaster.sendTransform(odom_tf);
+    if (enable_odom_tf_pub_) {
+      geometry_msgs::TransformStamped odom_tf;
+      odom_tf.header = odom_msg_.header;
+      odom_tf.child_frame_id = odom_msg_.child_frame_id;
+      odom_tf.transform.translation.x = odom_msg_.pose.pose.position.x;
+      odom_tf.transform.translation.y = odom_msg_.pose.pose.position.y;
+      odom_tf.transform.translation.z = 0;
+      odom_tf.transform.rotation = odom_msg_.pose.pose.orientation;
+      tf_broadcaster.sendTransform(odom_tf);
+    }
   }
 
 }

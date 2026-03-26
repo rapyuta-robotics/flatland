@@ -222,6 +222,41 @@ World *World::MakeWorld(const std::string &yaml_path) {
   return w;
 }
 
+World *World::MakeWorld(const std::string &yaml_path,
+                        const std::string &models_path,
+                        const std::string &world_plugins_path) {
+  YamlReader world_settings_reader = YamlReader(world_plugins_path);
+  YamlReader prop_reader =
+      world_settings_reader.Subnode("properties", YamlReader::MAP);
+  YamlReader world_plugin_reader =
+      world_settings_reader.SubnodeOpt("plugins", YamlReader::LIST);
+
+  int v = prop_reader.Get<int>("velocity_iterations", 10);
+  int p = prop_reader.Get<int>("position_iterations", 10);
+  prop_reader.EnsureAccessedAllKeys();
+
+  World *w = new World();
+
+  w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
+  w->physics_velocity_iterations_ = v;
+  w->physics_position_iterations_ = p;
+  w->models_path_ = models_path;
+  w->yaml_path_ = yaml_path;
+
+  try {
+    w->LoadWorldPlugins(world_plugin_reader, w, world_settings_reader);
+  } catch (const YAMLException &e) {
+    ROS_FATAL_NAMED("World", "Error loading world plugins");
+    delete w;
+    throw e;
+  } catch (const PluginException &e) {
+    ROS_FATAL_NAMED("World", "Error loading plugins");
+    delete w;
+    throw e;
+  }
+  return w;
+}
+
 void World::LoadWorldEntities() {
   try {
     YamlReader map_info_reader = YamlReader(yaml_path_);

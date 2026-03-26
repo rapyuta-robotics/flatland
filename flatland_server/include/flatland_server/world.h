@@ -72,6 +72,7 @@ class World {
  public:
   boost::filesystem::path world_yaml_dir_;  ///<directory containing world file
   std::string yaml_path_;                   ///< path to the world YAML file
+  std::string models_path_;                 ///< path to models directory
   b2WorldId world_id_;                      ///< Box2D v3 physics world ID
   b2Vec2 gravity_;  ///< Box2D world gravity, always (0, 0)
   std::map<std::vector<std::string>, Layer *>
@@ -189,6 +190,16 @@ class World {
    * @return pointer to a new world
    */
   static World *MakeWorld(const std::string &yaml_path);
+
+  /**
+   * @brief Create a world from separate world yaml, models path and plugins yaml.
+   * @param[in] yaml_path Path to world yaml (layers/models)
+   * @param[in] models_path Path to models directory
+   * @param[in] world_plugins_path Path to world plugins yaml
+   */
+  static World *MakeWorld(const std::string &yaml_path,
+                          const std::string &models_path,
+                          const std::string &world_plugins_path);
 
   /**
    * @brief Publish debug visualizations for everything
