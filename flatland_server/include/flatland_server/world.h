@@ -86,6 +86,7 @@ class World {
   InteractiveMarkerManager
       int_marker_manager_;  ///< for dynamically moving models from Rviz
   int physics_velocity_iterations_;  ///< Box2D solver velocity iterations
+  int physics_position_iterations_;  ///< Box2D solver position iterations
   enki::TaskScheduler task_scheduler_;  ///< enkiTS multi-core task scheduler
   MessageServer message_server;          ///< internal message passing system
 
