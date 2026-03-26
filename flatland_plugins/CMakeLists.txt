@@ -1,8 +1,9 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(flatland_plugins)
 
 # Ensure we're using c++11
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -73,6 +74,7 @@ add_library(flatland_plugins_lib
   src/tricycle_drive.cpp
   src/diff_drive.cpp
   src/dynamics_limits.cpp
+  src/imu.cpp
   src/model_tf_publisher.cpp
   src/update_timer.cpp
   src/bumper.cpp
@@ -148,9 +150,13 @@ if(CATKIN_ENABLE_TESTING)
                     test/tricycle_drive_test.cpp)
   target_link_libraries(tricycle_drive_test flatland_plugins_lib)
 
-  add_rostest_gtest(diff_drive_test test/diff_drive_test.test
+  add_rostest_gtest(diff_drive_plugin_test test/diff_drive_test.test
                     test/diff_drive_test.cpp)
-  target_link_libraries(diff_drive_test flatland_plugins_lib)
+  target_link_libraries(diff_drive_plugin_test flatland_plugins_lib)
+
+  add_rostest_gtest(imu_test test/imu_test.test
+                    test/imu_test.cpp)
+  target_link_libraries(imu_test flatland_plugins_lib)
 
   add_rostest_gtest(bumper_test test/bumper_test.test
                     test/bumper_test.cpp)

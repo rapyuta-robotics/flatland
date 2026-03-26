@@ -1,8 +1,10 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(flatland_server)
 
 # Ensure we're using c++11
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -O3")
+
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -40,8 +42,8 @@ find_package(Lua 5.1 QUIET)
 find_package(OpenCV REQUIRED)
 
 # Boost
-find_package(Boost REQUIRED COMPONENTS date_time system thread)
-find_package(Threads)
+find_package(Boost REQUIRED COMPONENTS date_time system filesystem)
+find_package(Threads REQUIRED)
 
 ##############
 ## coverage ##
@@ -69,13 +71,14 @@ catkin_package(
 ###########
 
 include_directories(
+  thirdparty
   include
+  thirdparty/Clipper2Lib/CPP/Clipper2Lib/include
   ${catkin_INCLUDE_DIRS}
   ${YAML_CPP_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${LUA_INCLUDE_DIR}
-  thirdparty
 )
 
 add_subdirectory("thirdparty/Box2D")
@@ -103,7 +106,7 @@ add_library(flatland_lib
   src/dummy_model_plugin.cpp 
   src/dummy_world_plugin.cpp
   src/yaml_preprocessor.cpp
-)
+  src/message_server.cpp)
 
 add_dependencies(flatland_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(flatland_lib
@@ -111,6 +114,7 @@ target_link_libraries(flatland_lib
   ${OpenCV_LIBRARIES}
   ${Boost_LIBRARIES}
   ${LUA_LIBRARIES}
+  Threads::Threads
   flatland_Box2D
   yaml-cpp
 )
@@ -130,10 +134,28 @@ target_link_libraries(flatland_server
   ${OpenCV_LIBRARIES}
   ${Boost_LIBRARIES}
   ${LUA_LIBRARIES}
+  Threads::Threads
   flatland_Box2D
   yaml-cpp
   flatland_lib
 )
+
+## Add benchmark non-installed binary
+add_executable(flatland_benchmark src/flatland_benchmark.cpp)
+add_dependencies(flatland_benchmark ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+## Specify libraries to link a library or executable target against
+target_link_libraries(flatland_benchmark
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${Boost_LIBRARIES}
+  ${LUA_LIBRARIES}
+  Threads::Threads
+  flatland_Box2D
+  yaml-cpp
+  flatland_lib
+)
+
 
 #############
 ## Install ##
@@ -174,6 +196,10 @@ install(DIRECTORY test/conestogo_office_test
 # Install plugins file
 install(FILES flatland_plugins.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(PROGRAMS scripts/map_to_lines.py
+    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 #############
