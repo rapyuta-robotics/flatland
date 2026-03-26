@@ -381,7 +381,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                  abs_path.string().c_str());
 
   Model *m =
-      Model::MakeModel(world_id_, &cfr_, abs_path.string(), ns, name);
+      Model::MakeModel(this, world_id_, &cfr_, abs_path.string(), ns, name);
   m->TransformAll(pose);
 
   try {
