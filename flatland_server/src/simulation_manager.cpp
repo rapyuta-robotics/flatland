@@ -168,7 +168,7 @@ void SimulationManager::Main() {
 
     ROS_INFO_THROTTLE_NAMED(
         1, "SimMan",
-        "utilization: min %.1f%% max %.1f%% ave %.1f%%  factor: %.1f",
+        "utilizationnnn: min %.1f%% max %.1f%% ave %.1f%%  factor: %.1f",
         min_cycle_util, max_cycle_util, filtered_cycle_util, factor);
   }
   ROS_INFO_NAMED("SimMan", "Simulation loop ended");

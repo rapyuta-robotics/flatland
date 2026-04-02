@@ -109,6 +109,7 @@ static void EnkiFinishTask(void *userTask, void *userContext) {
 World::World()
     : gravity_({0.0f, 0.0f}),
       service_paused_(false),
+      skip_physics_step_(false),
       int_marker_manager_(&models_, &plugin_manager_) {
   task_scheduler_.Initialize();
 
@@ -157,24 +158,27 @@ World::~World() {
 void World::Update(Timekeeper &timekeeper) {
   if (!IsPaused()) {
     plugin_manager_.BeforePhysicsStep(timekeeper);
-    s_taskCount = 0;  // Reset task pool for this step
-    b2World_Step(world_id_, timekeeper.GetStepSize(),
-                 physics_velocity_iterations_);
 
-    // Poll contact events (replaces b2ContactListener callbacks from v2)
-    b2ContactEvents events = b2World_GetContactEvents(world_id_);
-    for (int i = 0; i < events.beginCount; i++) {
-      const b2ContactBeginTouchEvent &e = events.beginEvents[i];
-      plugin_manager_.BeginContact(e.shapeIdA, e.shapeIdB);
-    }
-    for (int i = 0; i < events.endCount; i++) {
-      const b2ContactEndTouchEvent &e = events.endEvents[i];
-      plugin_manager_.EndContact(e.shapeIdA, e.shapeIdB);
-    }
-    for (int i = 0; i < events.hitCount; i++) {
-      const b2ContactHitEvent &e = events.hitEvents[i];
-      plugin_manager_.OnContactHit(e.shapeIdA, e.shapeIdB, e.point, e.normal,
-                                   e.approachSpeed);
+    if (!skip_physics_step_) {
+      s_taskCount = 0;  // Reset task pool for this step
+      b2World_Step(world_id_, timekeeper.GetStepSize(),
+                   physics_velocity_iterations_);
+
+      // Poll contact events (replaces b2ContactListener callbacks from v2)
+      b2ContactEvents events = b2World_GetContactEvents(world_id_);
+      for (int i = 0; i < events.beginCount; i++) {
+        const b2ContactBeginTouchEvent &e = events.beginEvents[i];
+        plugin_manager_.BeginContact(e.shapeIdA, e.shapeIdB);
+      }
+      for (int i = 0; i < events.endCount; i++) {
+        const b2ContactEndTouchEvent &e = events.endEvents[i];
+        plugin_manager_.EndContact(e.shapeIdA, e.shapeIdB);
+      }
+      for (int i = 0; i < events.hitCount; i++) {
+        const b2ContactHitEvent &e = events.hitEvents[i];
+        plugin_manager_.OnContactHit(e.shapeIdA, e.shapeIdB, e.point, e.normal,
+                                     e.approachSpeed);
+      }
     }
 
     timekeeper.StepTime();
@@ -188,6 +192,7 @@ World *World::MakeWorld(const std::string &yaml_path) {
   YamlReader prop_reader = world_reader.Subnode("properties", YamlReader::MAP);
   int v = prop_reader.Get<int>("velocity_iterations", 10);
   int p = prop_reader.Get<int>("position_iterations", 10);
+  bool skip_physics = prop_reader.Get<bool>("skip_physics_step", false);
   prop_reader.EnsureAccessedAllKeys();
 
   World *w = new World();
@@ -195,6 +200,7 @@ World *World::MakeWorld(const std::string &yaml_path) {
   w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
   w->yaml_path_ = yaml_path;
   w->physics_velocity_iterations_ = v;
+  w->skip_physics_step_ = skip_physics;
 
   try {
     YamlReader layers_reader = world_reader.Subnode("layers", YamlReader::LIST);
@@ -233,6 +239,7 @@ World *World::MakeWorld(const std::string &yaml_path,
 
   int v = prop_reader.Get<int>("velocity_iterations", 10);
   int p = prop_reader.Get<int>("position_iterations", 10);
+  bool skip_physics = prop_reader.Get<bool>("skip_physics_step", false);
   prop_reader.EnsureAccessedAllKeys();
 
   World *w = new World();
@@ -240,6 +247,7 @@ World *World::MakeWorld(const std::string &yaml_path,
   w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
   w->physics_velocity_iterations_ = v;
   w->physics_position_iterations_ = p;
+  w->skip_physics_step_ = skip_physics;
   w->models_path_ = models_path;
   w->yaml_path_ = yaml_path;
 
