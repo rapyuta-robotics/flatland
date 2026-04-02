@@ -66,6 +66,7 @@ class SimulationManager {
   double step_size_;             ///< step size
   bool show_viz_;                ///< flag to determine if to show visualization
   double viz_pub_rate_;          ///< rate to publish visualization
+  bool skip_physics_step_;       ///< skip Box2D physics step (for kinematic sims)
   std::string world_yaml_file_;  ///< path to the world file
   std::string models_path_;      ///< path to models directory
   std::string world_plugins_path_;  ///< path to world plugins yaml
@@ -81,10 +82,12 @@ class SimulationManager {
    * @param[in] step_size Time to step each iteration
    * @param[in] show_viz if to show visualization
    * @param[in] viz_pub_rate rate to publish visualization
+   * @param[in] skip_physics_step skip Box2D physics stepping
    */
   SimulationManager(std::string world_yaml_file, std::string models_path,
                     std::string world_plugins_path, double update_rate,
-                    double step_size, bool show_viz, double viz_pub_rate);
+                    double step_size, bool show_viz, double viz_pub_rate,
+                    bool skip_physics_step = false);
 
   /**
    * This method contains the loop that runs the simulation

@@ -62,22 +62,26 @@ SimulationManager::SimulationManager(std::string world_yaml_file,
                                      std::string models_path,
                                      std::string world_plugins_path,
                                      double update_rate, double step_size,
-                                     bool show_viz, double viz_pub_rate)
+                                     bool show_viz, double viz_pub_rate,
+                                     bool skip_physics_step)
     : world_(nullptr),
       update_rate_(update_rate),
       step_size_(step_size),
       show_viz_(show_viz),
       viz_pub_rate_(viz_pub_rate),
+      skip_physics_step_(skip_physics_step),
       world_yaml_file_(world_yaml_file),
       models_path_(models_path),
       world_plugins_path_(world_plugins_path) {
   ROS_INFO_NAMED("SimMan",
                  "Simulation params: world_yaml_file(%s) models_path(%s) "
                  "world_plugins_path(%s) update_rate(%f), "
-                 "step_size(%f) show_viz(%s), viz_pub_rate(%f)",
+                 "step_size(%f) show_viz(%s), viz_pub_rate(%f) "
+                 "skip_physics_step(%s)",
                  world_yaml_file_.c_str(), models_path_.c_str(),
                  world_plugins_path_.c_str(), update_rate_, step_size_,
-                 show_viz_ ? "true" : "false", viz_pub_rate_);
+                 show_viz_ ? "true" : "false", viz_pub_rate_,
+                 skip_physics_step_ ? "true" : "false");
 }
 
 void SimulationManager::Main() {
@@ -87,6 +91,10 @@ void SimulationManager::Main() {
   try {
     world_ =
         World::MakeWorld(world_yaml_file_, models_path_, world_plugins_path_);
+    if (skip_physics_step_) {
+      world_->skip_physics_step_ = true;
+      ROS_INFO_NAMED("SimMan", "Physics step disabled via parameter");
+    }
     ROS_INFO_NAMED("SimMan", "World loaded");
   } catch (const std::exception& e) {
     ROS_FATAL_NAMED("SimMan", "%s", e.what());

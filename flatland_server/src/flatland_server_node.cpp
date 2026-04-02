@@ -112,10 +112,13 @@ int main(int argc, char **argv) {
   float viz_pub_rate = 30.0;
   node_handle.getParam("viz_pub_rate", viz_pub_rate);
 
+  bool skip_physics_step = false;
+  node_handle.getParam("skip_physics_step", skip_physics_step);
+
   // Create simulation manager object
   simulation_manager = new flatland_server::SimulationManager(
       world_path, models_path, world_plugins_path, update_rate, step_size,
-      show_viz, viz_pub_rate);
+      show_viz, viz_pub_rate, skip_physics_step);
 
   // Register sigint shutdown handler
   signal(SIGINT, SigintHandler);
