@@ -129,6 +129,11 @@ void SimulationManager::Main() {
   }
 
   ROS_INFO_NAMED("SimMan", "Received Map, Simulation Loop Started");
+
+  // Process ROS callbacks in a background thread instead of blocking physics
+  ros::AsyncSpinner spinner(1);
+  spinner.start();
+
   while (ros::ok() && run_simulator_) {
     START_PROFILE(timekeeper, "Total Iteration");
     // for updating visualization at a given rate
@@ -152,7 +157,7 @@ void SimulationManager::Main() {
           timekeeper);  // publish debug visualization
     }
 
-    ros::spinOnce();
+    // ros::spinOnce() removed — AsyncSpinner processes callbacks continuously
     END_PROFILE(timekeeper, "Total Iteration");
     rate.sleep();
 

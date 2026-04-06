@@ -121,18 +121,18 @@ void DiffDrive::OnInitialize(const YAML::Node& config) {
   }
 
   // publish and subscribe to topics
-  twist_sub_ = nh_.subscribe(twist_topic, 1, &DiffDrive::TwistCallback, this);
+  twist_sub_ = nh_.subscribe(twist_topic, 5, &DiffDrive::TwistCallback, this);
   if (enable_odom_pub_) {
-    odom_pub_ = nh_.advertise<nav_msgs::Odometry>(odom_topic, 1);
+    odom_pub_ = nh_.advertise<nav_msgs::Odometry>(odom_topic, 5);
   }
 
   if (enable_ground_truth_pub_) {
     ground_truth_pub_ =
-        nh_.advertise<nav_msgs::Odometry>(ground_truth_topic, 1);
+        nh_.advertise<nav_msgs::Odometry>(ground_truth_topic, 5);
   }
 
   if (enable_twist_pub_) {
-    twist_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(twist_pub_topic, 1);
+    twist_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(twist_pub_topic, 5);
   }
 
   // init the values for the messages

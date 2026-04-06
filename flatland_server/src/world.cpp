@@ -53,6 +53,7 @@
 #include <ros/ros.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/filesystem.hpp>
+#include <atomic>
 #include <map>
 #include <string>
 
@@ -75,20 +76,20 @@ public:
 
 static constexpr int kMaxTasks = 128;
 static FlatlandTask s_tasks[kMaxTasks];
-static int s_taskCount = 0;
+static std::atomic<int> s_taskCount{0};
 
 static void *EnkiEnqueueTask(b2TaskCallback *fcn, int32_t itemCount,
                               int32_t minRange, void *taskContext,
                               void *userContext) {
   auto *scheduler = static_cast<enki::TaskScheduler *>(userContext);
-  if (s_taskCount < kMaxTasks) {
-    FlatlandTask &task = s_tasks[s_taskCount];
+  int idx = s_taskCount.fetch_add(1);
+  if (idx < kMaxTasks) {
+    FlatlandTask &task = s_tasks[idx];
     task.m_SetSize = itemCount;
     task.m_MinRange = minRange;
     task.m_task = fcn;
     task.m_taskContext = taskContext;
     scheduler->AddTaskSetToPipe(&task);
-    ++s_taskCount;
     return &task;
   }
   // Fallback: run inline if pool exhausted
@@ -119,6 +120,8 @@ World::World()
   world_def.finishTask = EnkiFinishTask;
   world_def.userTaskContext = &task_scheduler_;
   world_id_ = b2CreateWorld(&world_def);
+
+  plugin_manager_.SetTaskScheduler(&task_scheduler_);
 }
 
 World::~World() {
@@ -154,8 +157,27 @@ World::~World() {
   ROS_INFO_NAMED("World", "World destroyed");
 }
 
+void World::BuildPoseSnapshot() {
+  pose_snapshot_.clear();
+  for (const auto* model : models_) {
+    if (model->bodies_.empty()) continue;
+    b2Vec2 pos = b2Body_GetPosition(model->bodies_[0]->physics_body_);
+    float angle = b2Rot_GetAngle(b2Body_GetRotation(model->bodies_[0]->physics_body_));
+    auto& snap = pose_snapshot_[model->GetName()];
+    snap = {pos.x, pos.y, angle, {}};
+    // Tag snapshot with plugin types for this model so consumers can filter
+    for (const auto& mp : plugin_manager_.model_plugins_) {
+      if (mp->GetModel() == model) {
+        snap.plugin_types.push_back(mp->GetType());
+      }
+    }
+  }
+}
+
 void World::Update(Timekeeper &timekeeper) {
+  std::lock_guard<std::recursive_mutex> lock(world_mutex_);
   if (!IsPaused()) {
+    BuildPoseSnapshot();  // snapshot all poses before parallel plugin dispatch
     plugin_manager_.BeforePhysicsStep(timekeeper);
     s_taskCount = 0;  // Reset task pool for this step
     b2World_Step(world_id_, timekeeper.GetStepSize(),
@@ -178,6 +200,7 @@ void World::Update(Timekeeper &timekeeper) {
     }
 
     timekeeper.StepTime();
+    BuildPoseSnapshot();  // rebuild after physics so AfterPhysicsStep sees current poses
     plugin_manager_.AfterPhysicsStep(timekeeper);
   }
   int_marker_manager_.update();
@@ -366,6 +389,7 @@ void World::LoadWorldPlugins(YamlReader &world_plugin_reader, World *world,
 }
 void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                       const std::string &name, const Pose &pose) {
+  std::lock_guard<std::recursive_mutex> lock(world_mutex_);
   // ensure no duplicate model names
   if (std::count_if(models_.begin(), models_.end(),
                     [&](Model *m) { return m->name_ == name; }) >= 1) {
@@ -413,6 +437,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
 }
 
 void World::DeleteModel(const std::string &name) {
+  std::lock_guard<std::recursive_mutex> lock(world_mutex_);
   bool found = false;
 
   for (unsigned int i = 0; i < models_.size(); i++) {
@@ -435,6 +460,7 @@ void World::DeleteModel(const std::string &name) {
 }
 
 void World::MoveModel(const std::string &name, const Pose &pose) {
+  std::lock_guard<std::recursive_mutex> lock(world_mutex_);
   // Find desired model
   bool found = false;
 

@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 
 #include <ros/ros.h>
 
@@ -19,6 +20,7 @@ template <class T>
 class MessageTopic : public MessageTopicBase {
  public:
   std::vector<Subscriber<T>> subscribers_;
+  std::mutex mutex_;  // guards subscribers_ for thread-safe publish
 };
 
 template <class T>
@@ -88,6 +90,7 @@ Subscriber<T> MessageServer::subscribe(
     const std::function<void(const T&)>& callback_function) {
   flatland_server::MessageTopic<T>* topic = get_message_topic<T>(name);
 
+  std::lock_guard<std::mutex> lock(topic->mutex_);
   // TODO - Make it so that when the copied subscriber gets deleted, it will be
   // removed from the topic list
   // Not bothering to fix it now because, currently deletion of subscribers has
@@ -104,6 +107,7 @@ Publisher<T> MessageServer::advertise(const std::string& name) {
 
 template <class T>
 void Publisher<T>::publish(const T& t) {
+  std::lock_guard<std::mutex> lock(topic_->mutex_);
   for (const Subscriber<T>& subscriber : topic_->subscribers_) {
     subscriber.callback_function_(t);
   }
