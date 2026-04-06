@@ -71,6 +71,7 @@ namespace flatland_server {
  */
 struct PoseSnapshot {
   float x, y, theta;
+  std::vector<std::string> plugin_types;  ///< ModelPlugin types attached to this model
 };
 
 /**
@@ -100,7 +101,7 @@ class World {
   enki::TaskScheduler task_scheduler_;  ///< enkiTS multi-core task scheduler
   MessageServer message_server;          ///< internal message passing system
   std::unordered_map<std::string, PoseSnapshot> pose_snapshot_;  ///< per-step pose snapshot for thread-safe reads
-  std::mutex world_mutex_;  ///< guards model spawn/delete during physics step (for AsyncSpinner safety)
+  std::recursive_mutex world_mutex_;  ///< guards model spawn/delete during physics step (for AsyncSpinner safety)
 
   /**
    * @brief Constructor for the world class. All data required for
