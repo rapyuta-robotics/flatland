@@ -48,6 +48,7 @@
 #define FLATLAND_PLUGIN_MANAGER_H
 
 #include <box2d/box2d.h>
+#include "TaskScheduler.h"
 #include <flatland_server/model.h>
 #include <flatland_server/model_plugin.h>
 #include <flatland_server/timekeeper.h>
@@ -68,6 +69,9 @@ class PluginManager {
 
   std::vector<boost::shared_ptr<WorldPlugin>> world_plugins_;
   pluginlib::ClassLoader<flatland_server::WorldPlugin> *world_plugin_loader_;
+
+  enki::TaskScheduler* task_scheduler_ = nullptr;  ///< optional parallel dispatch scheduler
+
   /**
    * @brief Plugin manager constructor
    */
@@ -77,6 +81,12 @@ class PluginManager {
    * @brief Plugin manager destructor
    */
   ~PluginManager();
+
+  /**
+   * @brief Set the task scheduler for parallel model plugin dispatch
+   * @param[in] scheduler Pointer to enkiTS task scheduler (owned by World)
+   */
+  void SetTaskScheduler(enki::TaskScheduler* scheduler);
 
   /**
    * @brief This method is called before the Box2D physics step

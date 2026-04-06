@@ -75,18 +75,46 @@ PluginManager::~PluginManager() {
   delete world_plugin_loader_;
 }
 
+void PluginManager::SetTaskScheduler(enki::TaskScheduler* scheduler) {
+  task_scheduler_ = scheduler;
+}
+
 void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
-  for (const auto &model_plugin : model_plugins_) {
-    model_plugin->BeforePhysicsStep(timekeeper_);
+  if (task_scheduler_ && model_plugins_.size() > 1) {
+    // Parallel dispatch for model plugins — safe after Task 0 thread-safety fixes
+    enki::TaskSet task(static_cast<uint32_t>(model_plugins_.size()),
+      [this, &timekeeper_](enki::TaskSetPartition range, uint32_t) {
+        for (uint32_t i = range.start; i < range.end; ++i) {
+          model_plugins_[i]->BeforePhysicsStep(timekeeper_);
+        }
+      });
+    task_scheduler_->AddTaskSetToPipe(&task);
+    task_scheduler_->WaitforTask(&task);
+  } else {
+    for (const auto &model_plugin : model_plugins_) {
+      model_plugin->BeforePhysicsStep(timekeeper_);
+    }
   }
+  // World plugins remain sequential (they may depend on each other)
   for (const auto &world_plugin : world_plugins_) {
     world_plugin->BeforePhysicsStep(timekeeper_);
   }
 }
 
 void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
-  for (const auto &model_plugin : model_plugins_) {
-    model_plugin->AfterPhysicsStep(timekeeper_);
+  if (task_scheduler_ && model_plugins_.size() > 1) {
+    enki::TaskSet task(static_cast<uint32_t>(model_plugins_.size()),
+      [this, &timekeeper_](enki::TaskSetPartition range, uint32_t) {
+        for (uint32_t i = range.start; i < range.end; ++i) {
+          model_plugins_[i]->AfterPhysicsStep(timekeeper_);
+        }
+      });
+    task_scheduler_->AddTaskSetToPipe(&task);
+    task_scheduler_->WaitforTask(&task);
+  } else {
+    for (const auto &model_plugin : model_plugins_) {
+      model_plugin->AfterPhysicsStep(timekeeper_);
+    }
   }
   for (const auto &world_plugin : world_plugins_) {
     world_plugin->AfterPhysicsStep(timekeeper_);

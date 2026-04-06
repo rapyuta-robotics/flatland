@@ -119,6 +119,8 @@ World::World()
   world_def.finishTask = EnkiFinishTask;
   world_def.userTaskContext = &task_scheduler_;
   world_id_ = b2CreateWorld(&world_def);
+
+  plugin_manager_.SetTaskScheduler(&task_scheduler_);
 }
 
 World::~World() {
@@ -154,8 +156,20 @@ World::~World() {
   ROS_INFO_NAMED("World", "World destroyed");
 }
 
+void World::BuildPoseSnapshot() {
+  pose_snapshot_.clear();
+  for (const auto* model : models_) {
+    if (model->bodies_.empty()) continue;
+    b2Vec2 pos = b2Body_GetPosition(model->bodies_[0]->physics_body_);
+    float angle = b2Rot_GetAngle(b2Body_GetRotation(model->bodies_[0]->physics_body_));
+    pose_snapshot_[model->GetName()] = {pos.x, pos.y, angle};
+  }
+}
+
 void World::Update(Timekeeper &timekeeper) {
+  std::lock_guard<std::mutex> lock(world_mutex_);
   if (!IsPaused()) {
+    BuildPoseSnapshot();  // snapshot all poses before parallel plugin dispatch
     plugin_manager_.BeforePhysicsStep(timekeeper);
     s_taskCount = 0;  // Reset task pool for this step
     b2World_Step(world_id_, timekeeper.GetStepSize(),
@@ -366,6 +380,7 @@ void World::LoadWorldPlugins(YamlReader &world_plugin_reader, World *world,
 }
 void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
                       const std::string &name, const Pose &pose) {
+  std::lock_guard<std::mutex> lock(world_mutex_);
   // ensure no duplicate model names
   if (std::count_if(models_.begin(), models_.end(),
                     [&](Model *m) { return m->name_ == name; }) >= 1) {
@@ -413,6 +428,7 @@ void World::LoadModel(const std::string &model_yaml_path, const std::string &ns,
 }
 
 void World::DeleteModel(const std::string &name) {
+  std::lock_guard<std::mutex> lock(world_mutex_);
   bool found = false;
 
   for (unsigned int i = 0; i < models_.size(); i++) {
@@ -435,6 +451,7 @@ void World::DeleteModel(const std::string &name) {
 }
 
 void World::MoveModel(const std::string &name, const Pose &pose) {
+  std::lock_guard<std::mutex> lock(world_mutex_);
   // Find desired model
   bool found = false;
 

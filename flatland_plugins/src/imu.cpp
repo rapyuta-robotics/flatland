@@ -114,8 +114,8 @@ void Imu::OnInitialize(const YAML::Node& config) {
     throw YAMLException("Body with name " + Q(body_name) + " does not exist");
   }
 
-  imu_pub_ = nh_.advertise<sensor_msgs::Imu>(imu_topic, 1);
-  ground_truth_pub_ = nh_.advertise<sensor_msgs::Imu>(ground_truth_topic, 1);
+  imu_pub_ = nh_.advertise<sensor_msgs::Imu>(imu_topic, 5);
+  ground_truth_pub_ = nh_.advertise<sensor_msgs::Imu>(ground_truth_topic, 5);
 
   // init the values for the messages
   ground_truth_msg_.header.frame_id = imu_frame_id_;

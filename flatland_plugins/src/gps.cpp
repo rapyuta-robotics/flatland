@@ -11,7 +11,7 @@ double Gps::WGS84_E2 = 0.0066943799831668;
 void Gps::OnInitialize(const YAML::Node &config) {
   ParseParameters(config);
   update_timer_.SetRate(update_rate_);
-  fix_publisher_ = nh_.advertise<sensor_msgs::NavSatFix>(topic_, 1);
+  fix_publisher_ = nh_.advertise<sensor_msgs::NavSatFix>(topic_, 5);
 
   double c = cos(origin_.theta);
   double s = sin(origin_.theta);

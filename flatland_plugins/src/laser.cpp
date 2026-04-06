@@ -63,7 +63,7 @@ void Laser::OnInitialize(const YAML::Node &config) {
   ParseParameters(config);
 
   update_timer_.SetRate(update_rate_);
-  scan_publisher_ = nh_.advertise<sensor_msgs::LaserScan>(topic_, 1);
+  scan_publisher_ = nh_.advertise<sensor_msgs::LaserScan>(topic_, 5);
 
   // construct the body to laser transformation matrix once since it never
   // changes
@@ -164,27 +164,27 @@ void Laser::ComputeLaserRanges() {
                                v_world_laser_origin_(1)};
 
   b2WorldId world_id = GetModel()->GetPhysicsWorld();
+  b2QueryFilter filter = b2DefaultQueryFilter();
+  filter.maskBits = layers_bits_;
 
-  // Sequential ray cast loop (thread pool replaced; physics is now MT via enkiTS)
-  for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
-    b2Vec2 laser_point = {m_world_laser_points_(0, i),
-                          m_world_laser_points_(1, i)};
+  const unsigned int n = static_cast<unsigned int>(laser_scan_.ranges.size());
+
+  // Sequential ray cast loop — b2World_CastRay is not thread-safe even between steps.
+  // Filter and origin are hoisted outside the loop to minimize per-ray overhead.
+  for (unsigned int i = 0; i < n; ++i) {
+    const b2Vec2 laser_point = {m_world_laser_points_(0, i),
+                                m_world_laser_points_(1, i)};
 
     LaserRayContext ctx;
     ctx.layers_bits = layers_bits_;
     ctx.reflectance_layers_bits = reflectance_layers_bits_;
 
-    b2QueryFilter filter = b2DefaultQueryFilter();
-    filter.maskBits = layers_bits_;
     b2World_CastRay(world_id, laser_origin_point, laser_point, filter,
                     LaserRayCastFcn, &ctx);
 
-    if (!ctx.did_hit) {
-      laser_scan_.ranges[i] = NAN;
-    } else {
-      laser_scan_.ranges[i] =
-          static_cast<float>(ctx.fraction * range_ + noise_gen_(rng_));
-    }
+    laser_scan_.ranges[i] = ctx.did_hit
+        ? static_cast<float>(ctx.fraction * range_ + noise_gen_(rng_))
+        : NAN;
     if (reflectance_layers_bits_) laser_scan_.intensities[i] = ctx.intensity;
   }
 }

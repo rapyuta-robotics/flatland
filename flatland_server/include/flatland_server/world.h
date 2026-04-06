@@ -57,11 +57,21 @@
 #include <flatland_server/plugin_manager.h>
 #include <flatland_server/timekeeper.h>
 #include <map>
+#include <mutex>
 #include <string>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace flatland_server {
+
+/**
+ * Snapshot of a model's pose, built once per physics step before parallel
+ * plugin dispatch so plugins can read other models' poses without data races.
+ */
+struct PoseSnapshot {
+  float x, y, theta;
+};
 
 /**
  * This class defines a world in the simulation. A world contains layers
@@ -89,6 +99,8 @@ class World {
   int physics_position_iterations_;  ///< Box2D solver position iterations
   enki::TaskScheduler task_scheduler_;  ///< enkiTS multi-core task scheduler
   MessageServer message_server;          ///< internal message passing system
+  std::unordered_map<std::string, PoseSnapshot> pose_snapshot_;  ///< per-step pose snapshot for thread-safe reads
+  std::mutex world_mutex_;  ///< guards model spawn/delete during physics step (for AsyncSpinner safety)
 
   /**
    * @brief Constructor for the world class. All data required for
@@ -106,6 +118,12 @@ class World {
    * @param[in] timekeeper The time keeping object
    */
   void Update(Timekeeper &timekeeper);
+
+  /**
+   * @brief Build a snapshot of all model poses for thread-safe cross-plugin reads.
+   * Called once per physics step before parallel plugin dispatch.
+   */
+  void BuildPoseSnapshot();
 
   /*
    * @brief Load world plugins
