@@ -90,6 +90,7 @@ class World : public b2ContactListener {
       int_marker_manager_;  ///< for dynamically moving models from Rviz
   int physics_position_iterations_;  ///< Box2D solver param
   int physics_velocity_iterations_;  ///< Box2D solver param
+  bool skip_physics_step_;  ///< when true, skip Box2D Step and contact events
 
   MessageServer message_server;
 

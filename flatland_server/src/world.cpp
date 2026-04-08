@@ -61,6 +61,7 @@ namespace flatland_server {
 World::World()
     : gravity_(0, 0),
       service_paused_(false),
+      skip_physics_step_(false),
       int_marker_manager_(&models_, &plugin_manager_),
       step_size_(0.01),
       use_dynamic_fast_sim_(false),
@@ -112,10 +113,12 @@ void World::Update(Timekeeper &timekeeper) {
     plugin_manager_.BeforePhysicsStep(timekeeper);
     END_PROFILE(timekeeper, "Before Physics Step");
 
-    START_PROFILE(timekeeper, "Physics Step");
-    physics_world_->Step(timekeeper.GetStepSize(), physics_velocity_iterations_,
-                         physics_position_iterations_);
-    END_PROFILE(timekeeper, "Physics Step");
+    if (!skip_physics_step_) {
+      START_PROFILE(timekeeper, "Physics Step");
+      physics_world_->Step(timekeeper.GetStepSize(), physics_velocity_iterations_,
+                           physics_position_iterations_);
+      END_PROFILE(timekeeper, "Physics Step");
+    }
 
     timekeeper.StepTime();
 
@@ -158,6 +161,11 @@ World *World::MakeWorld(const std::string &yaml_path,
   nh.getParam("velocity_iterations", v);
   nh.getParam("position_iterations", p);
 
+  bool skip_physics = prop_reader.Get<bool>("skip_physics_step", false);
+  bool skip_physics_param = false;
+  nh.getParam("skip_physics_step", skip_physics_param);
+  skip_physics = skip_physics || skip_physics_param;
+
   prop_reader.EnsureAccessedAllKeys();
 
   World *w = new World();
@@ -165,6 +173,7 @@ World *World::MakeWorld(const std::string &yaml_path,
   w->world_yaml_dir_ = boost::filesystem::path(yaml_path).parent_path();
   w->physics_velocity_iterations_ = v;
   w->physics_position_iterations_ = p;
+  w->skip_physics_step_ = skip_physics;
   w->models_path_ = models_path;
   w->yaml_path_ = yaml_path;
 
