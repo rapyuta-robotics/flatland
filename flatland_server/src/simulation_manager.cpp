@@ -52,9 +52,11 @@
 #include <flatland_server/service_manager.h>
 #include <flatland_server/world.h>
 #include <ros/ros.h>
+#include <algorithm>
 #include <exception>
 #include <limits>
 #include <string>
+#include <thread>
 
 namespace flatland_server {
 
@@ -101,6 +103,15 @@ void SimulationManager::Main() {
     return;
   }
   service_manager_.reset(nullptr);
+
+  // Start AsyncSpinner: use (hardware_concurrency - 2) threads, minimum 2.
+  // This handles ROS action server / service callbacks in parallel
+  // without blocking the main physics loop.
+  const int spinner_threads =
+      std::max(2, static_cast<int>(std::thread::hardware_concurrency()) - 2);
+  ros::AsyncSpinner spinner(spinner_threads);
+  spinner.start();
+  ROS_INFO_NAMED("SimMan", "AsyncSpinner started with %d threads", spinner_threads);
 
   Timekeeper timekeeper;
   ros::WallRate rate(update_rate_);
@@ -160,7 +171,7 @@ void SimulationManager::Main() {
           timekeeper);  // publish debug visualization
     }
 
-    ros::spinOnce();
+    // ros::spinOnce() removed: AsyncSpinner handles callbacks asynchronously
     END_PROFILE(timekeeper, "Total Iteration");
     rate.sleep();
 

@@ -157,6 +157,11 @@ World::~World() {
 
 void World::Update(Timekeeper &timekeeper) {
   if (!IsPaused()) {
+    // Apply dynamic step size if feature is enabled
+    if (use_dynamic_fast_sim_ && dynamic_step_size_ > 0.0) {
+      timekeeper.SetMaxStepSize(dynamic_step_size_);
+    }
+
     plugin_manager_.BeforePhysicsStep(timekeeper);
 
     if (!skip_physics_step_) {
@@ -281,18 +286,43 @@ void World::LoadWorldEntities() {
   }
 }
 
-void World::SlowSimTime(const std::string & /*agent*/) {
-  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+void World::recomputeDynamicStepSize() {
+  auto n = agents_in_slow_time_.size();
+  if (n == 0) {
+    // All agents are processing sim tasks: run at max speed
+    dynamic_step_size_ = max_lower_speed_dynamic_sim_;
+  } else if ((int)n <= num_robots_threshold_dynamic_sim_) {
+    // Some agents are slow: run at mid speed
+    dynamic_step_size_ = (min_lower_speed_dynamic_sim_ + max_lower_speed_dynamic_sim_) * 0.5;
+  } else {
+    // Many agents are slow: run at min speed
+    dynamic_step_size_ = min_lower_speed_dynamic_sim_;
+  }
 }
 
-void World::FastSimTime(const std::string & /*agent*/) {
-  // Stub: dynamic fast-sim-time feature not yet ported to Box2D v3 branch
+void World::SlowSimTime(const std::string &agent) {
+  if (!use_dynamic_fast_sim_) return;
+  agents_in_slow_time_.insert(agent);
+  recomputeDynamicStepSize();
 }
 
-void World::InitializeDynamicFastSim(double /*max_lower_speed*/,
-                                      double /*min_lower_speed*/,
-                                      int /*num_robots_threshold*/) {
-  // Stub: dynamic fast-sim initialization not yet ported to Box2D v3 branch
+void World::FastSimTime(const std::string &agent) {
+  if (!use_dynamic_fast_sim_) return;
+  agents_in_slow_time_.erase(agent);
+  recomputeDynamicStepSize();
+}
+
+void World::InitializeDynamicFastSim(double max_lower_speed,
+                                      double min_lower_speed,
+                                      int num_robots_threshold) {
+  use_dynamic_fast_sim_ = true;
+  max_lower_speed_dynamic_sim_ = max_lower_speed;
+  min_lower_speed_dynamic_sim_ = min_lower_speed;
+  num_robots_threshold_dynamic_sim_ = num_robots_threshold;
+  dynamic_step_size_ = max_lower_speed;  // start at max (assume all agents are fast initially)
+  ROS_INFO_NAMED("World",
+                 "Dynamic fast-sim initialized: max_step=%.4f min_step=%.4f threshold=%d",
+                 max_lower_speed, min_lower_speed, num_robots_threshold);
 }
 
 void World::LoadLayers(YamlReader &layers_reader) {

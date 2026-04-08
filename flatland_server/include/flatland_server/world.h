@@ -47,6 +47,9 @@
 #ifndef FLATLAND_SERVER_WORLD_H
 #define FLATLAND_SERVER_WORLD_H
 
+#include <set>
+#include <string>
+
 #include <box2d/box2d.h>
 #include "TaskScheduler.h"
 #include <flatland_server/collision_filter_registry.h>
@@ -90,6 +93,16 @@ class World {
   bool skip_physics_step_;  ///< when true, skip b2World_Step and contact events
   enki::TaskScheduler task_scheduler_;  ///< enkiTS multi-core task scheduler
   MessageServer message_server;          ///< internal message passing system
+
+  // Dynamic fast-sim-time state
+  bool use_dynamic_fast_sim_{false};
+  double max_lower_speed_dynamic_sim_{0.0};
+  double min_lower_speed_dynamic_sim_{0.0};
+  int num_robots_threshold_dynamic_sim_{0};
+  std::set<std::string> agents_in_slow_time_;
+  double dynamic_step_size_{0.0};  ///< computed step size (0 = use SimulationManager default)
+
+  void recomputeDynamicStepSize();  ///< recompute dynamic_step_size_ from agents_in_slow_time_
 
   /**
    * @brief Constructor for the world class. All data required for
