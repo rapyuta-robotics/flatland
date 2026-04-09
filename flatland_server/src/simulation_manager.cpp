@@ -50,6 +50,7 @@
 #include <flatland_server/simulation_manager.h>
 #include <flatland_server/world.h>
 #include <ros/ros.h>
+#include <thread>
 #include <exception>
 #include <limits>
 #include <string>
@@ -80,6 +81,13 @@ SimulationManager::SimulationManager(std::string world_yaml_file,
 void SimulationManager::Main() {
   ROS_INFO_NAMED("SimMan", "Initializing...");
   run_simulator_ = true;
+
+  // Use AsyncSpinner so ROS callbacks (services, topics) are processed
+  // continuously in background threads instead of blocking the sim loop.
+  int spinner_threads = std::max(1, (int)std::thread::hardware_concurrency() - 2);
+  ros::AsyncSpinner spinner(spinner_threads);
+  spinner.start();
+  ROS_INFO_NAMED("SimMan", "AsyncSpinner started with %d threads", spinner_threads);
 
   try {
     world_ =
@@ -164,7 +172,7 @@ void SimulationManager::Main() {
       END_PROFILE(timekeeper, "Update Interactive Marker");
     }
 
-    ros::spinOnce();
+    // ros::spinOnce() replaced by AsyncSpinner above
 
     END_PROFILE(timekeeper, "Total Iteration");
     rate.sleep();
