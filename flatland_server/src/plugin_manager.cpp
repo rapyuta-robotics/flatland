@@ -51,6 +51,8 @@
 #include <flatland_server/world.h>
 #include <flatland_server/world_plugin.h>
 #include <yaml-cpp/yaml.h>
+#include <future>
+#include <unordered_map>
 
 namespace flatland_server {
 
@@ -76,15 +78,25 @@ PluginManager::~PluginManager() {
 }
 
 void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
-  for (const auto &model_plugin : model_plugins_) {
-    START_PROFILE(timekeeper_, "Before Physics Step: " +
-                                   model_plugin.get()->GetModel()->name_ + " " +
-                                   model_plugin.get()->name_);
-    model_plugin->BeforePhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_, "Before Physics Step: " +
-                                 model_plugin.get()->GetModel()->name_ + " " +
-                                 model_plugin.get()->name_);
+  // Group plugins by owning model so each robot's plugins run in one thread.
+  std::unordered_map<Model*, std::vector<boost::shared_ptr<ModelPlugin>>> groups;
+  for (auto& p : model_plugins_) {
+    groups[p->GetModel()].push_back(p);
   }
+
+  START_PROFILE(timekeeper_, "Before Physics Step: model_plugins (parallel)");
+  std::vector<std::future<void>> futures;
+  futures.reserve(groups.size());
+  for (auto& kv : groups) {
+    futures.push_back(std::async(std::launch::async, [&kv, &timekeeper_]() {
+      for (auto& p : kv.second) {
+        p->BeforePhysicsStep(timekeeper_);
+      }
+    }));
+  }
+  for (auto& f : futures) { f.get(); }
+  END_PROFILE(timekeeper_, "Before Physics Step: model_plugins (parallel)");
+
   for (const auto &world_plugin : world_plugins_) {
     START_PROFILE(timekeeper_,
                   "Before Physics Step: " + world_plugin.get()->name_);
@@ -95,15 +107,24 @@ void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
 }
 
 void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
-  for (const auto &model_plugin : model_plugins_) {
-    START_PROFILE(timekeeper_, "After Physics Step: " +
-                                   model_plugin.get()->GetModel()->name_ + " " +
-                                   model_plugin.get()->name_);
-    model_plugin->AfterPhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_, "After Physics Step: " +
-                                 model_plugin.get()->GetModel()->name_ + " " +
-                                 model_plugin.get()->name_);
+  std::unordered_map<Model*, std::vector<boost::shared_ptr<ModelPlugin>>> groups;
+  for (auto& p : model_plugins_) {
+    groups[p->GetModel()].push_back(p);
   }
+
+  START_PROFILE(timekeeper_, "After Physics Step: model_plugins (parallel)");
+  std::vector<std::future<void>> futures;
+  futures.reserve(groups.size());
+  for (auto& kv : groups) {
+    futures.push_back(std::async(std::launch::async, [&kv, &timekeeper_]() {
+      for (auto& p : kv.second) {
+        p->AfterPhysicsStep(timekeeper_);
+      }
+    }));
+  }
+  for (auto& f : futures) { f.get(); }
+  END_PROFILE(timekeeper_, "After Physics Step: model_plugins (parallel)");
+
   for (const auto &world_plugin : world_plugins_) {
     START_PROFILE(timekeeper_,
                   "After Physics Step: " + world_plugin.get()->name_);
