@@ -51,10 +51,71 @@
 #include <flatland_server/world.h>
 #include <flatland_server/world_plugin.h>
 #include <yaml-cpp/yaml.h>
-#include <future>
 #include <unordered_map>
 
 namespace flatland_server {
+
+// ---------------------------------------------------------------------------
+// ModelPluginThreadPool
+// ---------------------------------------------------------------------------
+
+ModelPluginThreadPool::ModelPluginThreadPool(std::size_t n) : stop_(false) {
+  workers_.reserve(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    workers_.emplace_back([this] {
+      for (;;) {
+        std::packaged_task<void()> task;
+        {
+          std::unique_lock<std::mutex> lock(mutex_);
+          cv_.wait(lock, [this] { return stop_ || !queue_.empty(); });
+          if (stop_ && queue_.empty()) return;
+          task = std::move(queue_.front());
+          queue_.pop();
+        }
+        task();
+      }
+    });
+  }
+}
+
+ModelPluginThreadPool::~ModelPluginThreadPool() {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stop_ = true;
+  }
+  cv_.notify_all();
+  for (auto& w : workers_) w.join();
+}
+
+std::future<void> ModelPluginThreadPool::submit(std::function<void()> f) {
+  std::packaged_task<void()> task(std::move(f));
+  auto fut = task.get_future();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.push(std::move(task));
+  }
+  cv_.notify_one();
+  return fut;
+}
+
+// ---------------------------------------------------------------------------
+// PluginManager
+// ---------------------------------------------------------------------------
+
+void PluginManager::RebuildPluginGroups() {
+  std::unordered_map<Model*, std::size_t> idx;
+  plugin_groups_.clear();
+  for (auto& p : model_plugins_) {
+    Model* m = p->GetModel();
+    auto it = idx.find(m);
+    if (it == idx.end()) {
+      idx[m] = plugin_groups_.size();
+      plugin_groups_.push_back({p});
+    } else {
+      plugin_groups_[it->second].push_back(p);
+    }
+  }
+}
 
 PluginManager::PluginManager() {
   model_plugin_loader_ =
@@ -63,6 +124,9 @@ PluginManager::PluginManager() {
   world_plugin_loader_ =
       new pluginlib::ClassLoader<flatland_server::WorldPlugin>(
           "flatland_server", "flatland_server::WorldPlugin");
+
+  const std::size_t n = std::max(1u, std::thread::hardware_concurrency());
+  thread_pool_ = std::make_unique<ModelPluginThreadPool>(n);
 }
 
 PluginManager::~PluginManager() {
@@ -78,18 +142,12 @@ PluginManager::~PluginManager() {
 }
 
 void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
-  // Group plugins by owning model so each robot's plugins run in one thread.
-  std::unordered_map<Model*, std::vector<boost::shared_ptr<ModelPlugin>>> groups;
-  for (auto& p : model_plugins_) {
-    groups[p->GetModel()].push_back(p);
-  }
-
   START_PROFILE(timekeeper_, "Before Physics Step: model_plugins (parallel)");
   std::vector<std::future<void>> futures;
-  futures.reserve(groups.size());
-  for (auto& kv : groups) {
-    futures.push_back(std::async(std::launch::async, [&kv, &timekeeper_]() {
-      for (auto& p : kv.second) {
+  futures.reserve(plugin_groups_.size());
+  for (const auto& group : plugin_groups_) {
+    futures.push_back(thread_pool_->submit([&group, &timekeeper_]() {
+      for (const auto& p : group) {
         p->BeforePhysicsStep(timekeeper_);
       }
     }));
@@ -107,17 +165,12 @@ void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
 }
 
 void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
-  std::unordered_map<Model*, std::vector<boost::shared_ptr<ModelPlugin>>> groups;
-  for (auto& p : model_plugins_) {
-    groups[p->GetModel()].push_back(p);
-  }
-
   START_PROFILE(timekeeper_, "After Physics Step: model_plugins (parallel)");
   std::vector<std::future<void>> futures;
-  futures.reserve(groups.size());
-  for (auto& kv : groups) {
-    futures.push_back(std::async(std::launch::async, [&kv, &timekeeper_]() {
-      for (auto& p : kv.second) {
+  futures.reserve(plugin_groups_.size());
+  for (const auto& group : plugin_groups_) {
+    futures.push_back(thread_pool_->submit([&group, &timekeeper_]() {
+      for (const auto& p : group) {
         p->AfterPhysicsStep(timekeeper_);
       }
     }));
@@ -141,6 +194,7 @@ void PluginManager::DeleteModelPlugin(Model *model) {
                        return p->GetModel() == model;
                      }),
       model_plugins_.end());
+  RebuildPluginGroups();
 }
 
 void PluginManager::LoadModelPlugin(Model *model, YamlReader &plugin_reader) {
@@ -207,6 +261,7 @@ void PluginManager::LoadModelPlugin(Model *model, YamlReader &plugin_reader) {
     throw PluginException(msg + ": " + std::string(e.what()));
   }
   model_plugins_.push_back(model_plugin);
+  RebuildPluginGroups();
 
   ROS_INFO_NAMED("PluginManager", "%s loaded", msg.c_str());
 }
