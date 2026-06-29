@@ -51,6 +51,7 @@
 #include <flatland_server/world.h>
 #include <flatland_server/world_plugin.h>
 #include <yaml-cpp/yaml.h>
+#include <chrono>
 #include <unordered_map>
 
 namespace flatland_server {
@@ -158,7 +159,15 @@ void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
   for (const auto &world_plugin : world_plugins_) {
     START_PROFILE(timekeeper_,
                   "Before Physics Step: " + world_plugin.get()->name_);
+    auto _wp_t0 = std::chrono::steady_clock::now();
     world_plugin->BeforePhysicsStep(timekeeper_);
+    double _wp_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - _wp_t0).count();
+    if (_wp_ms > 10.0) {
+      ROS_WARN_THROTTLE(30.0,
+          "Slow BeforePhysicsStep: world plugin '%s' took %.1f ms",
+          world_plugin->name_.c_str(), _wp_ms);
+    }
     END_PROFILE(timekeeper_,
                 "Before Physics Step: " + world_plugin.get()->name_);
   }
@@ -181,7 +190,15 @@ void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
   for (const auto &world_plugin : world_plugins_) {
     START_PROFILE(timekeeper_,
                   "After Physics Step: " + world_plugin.get()->name_);
+    auto _wp_t0 = std::chrono::steady_clock::now();
     world_plugin->AfterPhysicsStep(timekeeper_);
+    double _wp_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - _wp_t0).count();
+    if (_wp_ms > 10.0) {
+      ROS_WARN_THROTTLE(30.0,
+          "Slow AfterPhysicsStep: world plugin '%s' took %.1f ms",
+          world_plugin->name_.c_str(), _wp_ms);
+    }
     END_PROFILE(timekeeper_,
                 "After Physics Step: " + world_plugin.get()->name_);
   }
