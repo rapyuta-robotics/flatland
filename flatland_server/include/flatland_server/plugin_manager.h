@@ -166,10 +166,16 @@ class PluginManager {
 
  private:
   // Per-model plugin groups, rebuilt only when robots are added/removed.
+  // Protected by model_mutex_ — AsyncSpinner service callbacks (SpawnModel)
+  // modify model_plugins_ + plugin_groups_ concurrently with BeforePhysicsStep.
   std::vector<std::vector<boost::shared_ptr<ModelPlugin>>> plugin_groups_;
   // Thread pool whose workers are created once at construction.
   std::unique_ptr<ModelPluginThreadPool> thread_pool_;
-  // Rebuild plugin_groups_ from model_plugins_.
+  // Guards model_plugins_ and plugin_groups_ against concurrent access between
+  // the main simulation thread (BeforePhysicsStep) and AsyncSpinner threads
+  // (SpawnModel / DeleteModel service callbacks).
+  std::mutex model_mutex_;
+  // Rebuild plugin_groups_ from model_plugins_. Must be called with model_mutex_ held.
   void RebuildPluginGroups();
 };
 };      // namespace flatland_server

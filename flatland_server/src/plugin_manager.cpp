@@ -144,9 +144,16 @@ PluginManager::~PluginManager() {
 
 void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
   START_PROFILE(timekeeper_, "Before Physics Step: model_plugins (parallel)");
+  // Snapshot plugin_groups_ under the lock so AsyncSpinner service callbacks
+  // (SpawnModel/DeleteModel) can safely modify it without racing with us.
+  std::vector<std::vector<boost::shared_ptr<ModelPlugin>>> groups_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(model_mutex_);
+    groups_snapshot = plugin_groups_;
+  }
   std::vector<std::future<void>> futures;
-  futures.reserve(plugin_groups_.size());
-  for (const auto& group : plugin_groups_) {
+  futures.reserve(groups_snapshot.size());
+  for (const auto& group : groups_snapshot) {
     futures.push_back(thread_pool_->submit([&group, &timekeeper_]() {
       for (const auto& p : group) {
         p->BeforePhysicsStep(timekeeper_);
@@ -175,9 +182,14 @@ void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
 
 void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
   START_PROFILE(timekeeper_, "After Physics Step: model_plugins (parallel)");
+  std::vector<std::vector<boost::shared_ptr<ModelPlugin>>> groups_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(model_mutex_);
+    groups_snapshot = plugin_groups_;
+  }
   std::vector<std::future<void>> futures;
-  futures.reserve(plugin_groups_.size());
-  for (const auto& group : plugin_groups_) {
+  futures.reserve(groups_snapshot.size());
+  for (const auto& group : groups_snapshot) {
     futures.push_back(thread_pool_->submit([&group, &timekeeper_]() {
       for (const auto& p : group) {
         p->AfterPhysicsStep(timekeeper_);
@@ -205,6 +217,7 @@ void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
 }
 
 void PluginManager::DeleteModelPlugin(Model *model) {
+  std::lock_guard<std::mutex> lock(model_mutex_);
   model_plugins_.erase(
       std::remove_if(model_plugins_.begin(), model_plugins_.end(),
                      [&](boost::shared_ptr<ModelPlugin> p) {
@@ -277,8 +290,11 @@ void PluginManager::LoadModelPlugin(Model *model, YamlReader &plugin_reader) {
   } catch (const std::exception &e) {
     throw PluginException(msg + ": " + std::string(e.what()));
   }
-  model_plugins_.push_back(model_plugin);
-  RebuildPluginGroups();
+  {
+    std::lock_guard<std::mutex> lock(model_mutex_);
+    model_plugins_.push_back(model_plugin);
+    RebuildPluginGroups();
+  }
 
   ROS_INFO_NAMED("PluginManager", "%s loaded", msg.c_str());
 }
