@@ -135,6 +135,16 @@ target_link_libraries(flatland_server
   flatland_lib
 )
 
+# Performance optimizations for 200-robot simulation
+if(NOT "${COVERAGE}" STREQUAL "ON")
+    target_compile_options(flatland_lib PRIVATE -O3 -march=native)
+    target_compile_options(flatland_server PRIVATE -O3 -march=native)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.9)
+        set_property(TARGET flatland_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        set_property(TARGET flatland_server PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+endif()
+
 #############
 ## Install ##
 #############

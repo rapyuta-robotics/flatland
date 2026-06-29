@@ -51,8 +51,72 @@
 #include <flatland_server/world.h>
 #include <flatland_server/world_plugin.h>
 #include <yaml-cpp/yaml.h>
+#include <chrono>
+#include <unordered_map>
 
 namespace flatland_server {
+
+// ---------------------------------------------------------------------------
+// ModelPluginThreadPool
+// ---------------------------------------------------------------------------
+
+ModelPluginThreadPool::ModelPluginThreadPool(std::size_t n) : stop_(false) {
+  workers_.reserve(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    workers_.emplace_back([this] {
+      for (;;) {
+        std::packaged_task<void()> task;
+        {
+          std::unique_lock<std::mutex> lock(mutex_);
+          cv_.wait(lock, [this] { return stop_ || !queue_.empty(); });
+          if (stop_ && queue_.empty()) return;
+          task = std::move(queue_.front());
+          queue_.pop();
+        }
+        task();
+      }
+    });
+  }
+}
+
+ModelPluginThreadPool::~ModelPluginThreadPool() {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    stop_ = true;
+  }
+  cv_.notify_all();
+  for (auto& w : workers_) w.join();
+}
+
+std::future<void> ModelPluginThreadPool::submit(std::function<void()> f) {
+  std::packaged_task<void()> task(std::move(f));
+  auto fut = task.get_future();
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.push(std::move(task));
+  }
+  cv_.notify_one();
+  return fut;
+}
+
+// ---------------------------------------------------------------------------
+// PluginManager
+// ---------------------------------------------------------------------------
+
+void PluginManager::RebuildPluginGroups() {
+  std::unordered_map<Model*, std::size_t> idx;
+  plugin_groups_.clear();
+  for (auto& p : model_plugins_) {
+    Model* m = p->GetModel();
+    auto it = idx.find(m);
+    if (it == idx.end()) {
+      idx[m] = plugin_groups_.size();
+      plugin_groups_.push_back({p});
+    } else {
+      plugin_groups_[it->second].push_back(p);
+    }
+  }
+}
 
 PluginManager::PluginManager() {
   model_plugin_loader_ =
@@ -61,6 +125,9 @@ PluginManager::PluginManager() {
   world_plugin_loader_ =
       new pluginlib::ClassLoader<flatland_server::WorldPlugin>(
           "flatland_server", "flatland_server::WorldPlugin");
+
+  const std::size_t n = std::max(1u, std::thread::hardware_concurrency());
+  thread_pool_ = std::make_unique<ModelPluginThreadPool>(n);
 }
 
 PluginManager::~PluginManager() {
@@ -76,50 +143,88 @@ PluginManager::~PluginManager() {
 }
 
 void PluginManager::BeforePhysicsStep(const Timekeeper &timekeeper_) {
-  for (const auto &model_plugin : model_plugins_) {
-    START_PROFILE(timekeeper_, "Before Physics Step: " +
-                                   model_plugin.get()->GetModel()->name_ + " " +
-                                   model_plugin.get()->name_);
-    model_plugin->BeforePhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_, "Before Physics Step: " +
-                                 model_plugin.get()->GetModel()->name_ + " " +
-                                 model_plugin.get()->name_);
+  START_PROFILE(timekeeper_, "Before Physics Step: model_plugins (parallel)");
+  // Snapshot plugin_groups_ under the lock so AsyncSpinner service callbacks
+  // (SpawnModel/DeleteModel) can safely modify it without racing with us.
+  std::vector<std::vector<boost::shared_ptr<ModelPlugin>>> groups_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(model_mutex_);
+    groups_snapshot = plugin_groups_;
   }
+  std::vector<std::future<void>> futures;
+  futures.reserve(groups_snapshot.size());
+  for (const auto& group : groups_snapshot) {
+    futures.push_back(thread_pool_->submit([&group, &timekeeper_]() {
+      for (const auto& p : group) {
+        p->BeforePhysicsStep(timekeeper_);
+      }
+    }));
+  }
+  for (auto& f : futures) { f.get(); }
+  END_PROFILE(timekeeper_, "Before Physics Step: model_plugins (parallel)");
+
   for (const auto &world_plugin : world_plugins_) {
     START_PROFILE(timekeeper_,
                   "Before Physics Step: " + world_plugin.get()->name_);
+    auto _wp_t0 = std::chrono::steady_clock::now();
     world_plugin->BeforePhysicsStep(timekeeper_);
+    double _wp_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - _wp_t0).count();
+    if (_wp_ms > 10.0) {
+      ROS_WARN_THROTTLE(30.0,
+          "Slow BeforePhysicsStep: world plugin '%s' took %.1f ms",
+          world_plugin->name_.c_str(), _wp_ms);
+    }
     END_PROFILE(timekeeper_,
                 "Before Physics Step: " + world_plugin.get()->name_);
   }
 }
 
 void PluginManager::AfterPhysicsStep(const Timekeeper &timekeeper_) {
-  for (const auto &model_plugin : model_plugins_) {
-    START_PROFILE(timekeeper_, "After Physics Step: " +
-                                   model_plugin.get()->GetModel()->name_ + " " +
-                                   model_plugin.get()->name_);
-    model_plugin->AfterPhysicsStep(timekeeper_);
-    END_PROFILE(timekeeper_, "After Physics Step: " +
-                                 model_plugin.get()->GetModel()->name_ + " " +
-                                 model_plugin.get()->name_);
+  START_PROFILE(timekeeper_, "After Physics Step: model_plugins (parallel)");
+  std::vector<std::vector<boost::shared_ptr<ModelPlugin>>> groups_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(model_mutex_);
+    groups_snapshot = plugin_groups_;
   }
+  std::vector<std::future<void>> futures;
+  futures.reserve(groups_snapshot.size());
+  for (const auto& group : groups_snapshot) {
+    futures.push_back(thread_pool_->submit([&group, &timekeeper_]() {
+      for (const auto& p : group) {
+        p->AfterPhysicsStep(timekeeper_);
+      }
+    }));
+  }
+  for (auto& f : futures) { f.get(); }
+  END_PROFILE(timekeeper_, "After Physics Step: model_plugins (parallel)");
+
   for (const auto &world_plugin : world_plugins_) {
     START_PROFILE(timekeeper_,
                   "After Physics Step: " + world_plugin.get()->name_);
+    auto _wp_t0 = std::chrono::steady_clock::now();
     world_plugin->AfterPhysicsStep(timekeeper_);
+    double _wp_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - _wp_t0).count();
+    if (_wp_ms > 10.0) {
+      ROS_WARN_THROTTLE(30.0,
+          "Slow AfterPhysicsStep: world plugin '%s' took %.1f ms",
+          world_plugin->name_.c_str(), _wp_ms);
+    }
     END_PROFILE(timekeeper_,
                 "After Physics Step: " + world_plugin.get()->name_);
   }
 }
 
 void PluginManager::DeleteModelPlugin(Model *model) {
+  std::lock_guard<std::mutex> lock(model_mutex_);
   model_plugins_.erase(
       std::remove_if(model_plugins_.begin(), model_plugins_.end(),
                      [&](boost::shared_ptr<ModelPlugin> p) {
                        return p->GetModel() == model;
                      }),
       model_plugins_.end());
+  RebuildPluginGroups();
 }
 
 void PluginManager::LoadModelPlugin(Model *model, YamlReader &plugin_reader) {
@@ -185,7 +290,11 @@ void PluginManager::LoadModelPlugin(Model *model, YamlReader &plugin_reader) {
   } catch (const std::exception &e) {
     throw PluginException(msg + ": " + std::string(e.what()));
   }
-  model_plugins_.push_back(model_plugin);
+  {
+    std::lock_guard<std::mutex> lock(model_mutex_);
+    model_plugins_.push_back(model_plugin);
+    RebuildPluginGroups();
+  }
 
   ROS_INFO_NAMED("PluginManager", "%s loaded", msg.c_str());
 }

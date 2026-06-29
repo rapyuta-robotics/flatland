@@ -55,12 +55,36 @@
 #include <flatland_server/yaml_reader.h>
 #include <pluginlib/class_loader.h>
 #include <yaml-cpp/yaml.h>
+#include <condition_variable>
+#include <functional>
+#include <future>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <thread>
+#include <vector>
 
 namespace flatland_server {
 
 // forward declaration
 class World;
 class ModelPlugin;
+
+// Fixed-size thread pool whose threads are created once and reused across
+// every physics step, avoiding the OS thread create/destroy overhead that
+// std::async(launch::async) incurs on Linux/libstdc++.
+struct ModelPluginThreadPool {
+  explicit ModelPluginThreadPool(std::size_t n_threads);
+  ~ModelPluginThreadPool();
+  std::future<void> submit(std::function<void()> f);
+
+ private:
+  std::vector<std::thread> workers_;
+  std::queue<std::packaged_task<void()>> queue_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool stop_{false};
+};
 
 class PluginManager {
  public:
@@ -139,6 +163,20 @@ class PluginManager {
    * @param[in] impulse The calculated impulse from the collision resolute
    */
   void PostSolve(b2Contact *contact, const b2ContactImpulse *impulse);
+
+ private:
+  // Per-model plugin groups, rebuilt only when robots are added/removed.
+  // Protected by model_mutex_ — AsyncSpinner service callbacks (SpawnModel)
+  // modify model_plugins_ + plugin_groups_ concurrently with BeforePhysicsStep.
+  std::vector<std::vector<boost::shared_ptr<ModelPlugin>>> plugin_groups_;
+  // Thread pool whose workers are created once at construction.
+  std::unique_ptr<ModelPluginThreadPool> thread_pool_;
+  // Guards model_plugins_ and plugin_groups_ against concurrent access between
+  // the main simulation thread (BeforePhysicsStep) and AsyncSpinner threads
+  // (SpawnModel / DeleteModel service callbacks).
+  std::mutex model_mutex_;
+  // Rebuild plugin_groups_ from model_plugins_. Must be called with model_mutex_ held.
+  void RebuildPluginGroups();
 };
 };      // namespace flatland_server
 #endif  // FLATLAND_PLUGIN_MANAGER_H
