@@ -191,11 +191,15 @@ void Laser::ComputeLaserRanges()
     });
   }
 
-  // Unqueue all of the future'd results
-  for (unsigned int i = 0; i < laser_scan_.ranges.size(); ++i) {
+  // Unqueue all of the future'd results. When the lidar is mounted upside-down
+  // (flipped_), the scan order is reversed: result i is written to the
+  // mirrored index so angle_min/angle_max stay consistent with the physical sensor.
+  const size_t n = laser_scan_.ranges.size();
+  for (unsigned int i = 0; i < n; ++i) {
     auto result = results[i].get();  // Pull the result from the future
-    laser_scan_.ranges[i] = result.first + this->noise_gen_(this->rng_);
-    if (reflectance_layers_bits_) laser_scan_.intensities[i] = result.second;
+    const size_t idx = flipped_ ? (n - 1 - i) : i;
+    laser_scan_.ranges[idx] = result.first + this->noise_gen_(this->rng_);
+    if (reflectance_layers_bits_) laser_scan_.intensities[idx] = result.second;
   }
 }
 
@@ -232,6 +236,7 @@ void Laser::ParseParameters(const YAML::Node & config)
   topic_ = reader.Get<std::string>("topic", "scan");
   frame_id_ = reader.Get<std::string>("frame", GetName());
   broadcast_tf_ = reader.Get<bool>("broadcast_tf", true);
+  flipped_ = reader.Get<bool>("flipped", false);
   update_rate_ = reader.Get<double>("update_rate", std::numeric_limits<double>::infinity());
   origin_ = reader.GetPose("origin", Pose(0, 0, 0));
   range_ = reader.Get<double>("range");

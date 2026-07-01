@@ -84,6 +84,7 @@ public:
   double update_rate_;    ///< the rate laser scan will be published
   std::string frame_id_;  ///< laser frame id name
   bool broadcast_tf_;     ///< whether to broadcast laser origin w.r.t body
+  bool flipped_;          ///< whether the lidar is mounted upside-down (reverse scan order)
   uint16_t layers_bits_;  ///< for setting the layers where laser will function
   ThreadPool pool_;       ///< ThreadPool for managing concurrent scan threads
 
