@@ -191,9 +191,6 @@ void Laser::ComputeLaserRanges()
     });
   }
 
-  // Unqueue all of the future'd results. When the lidar is mounted upside-down
-  // (flipped_), the scan order is reversed: result i is written to the
-  // mirrored index so angle_min/angle_max stay consistent with the physical sensor.
   const size_t n = laser_scan_.ranges.size();
   for (unsigned int i = 0; i < n; ++i) {
     auto result = results[i].get();  // Pull the result from the future
