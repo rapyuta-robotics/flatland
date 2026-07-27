@@ -48,6 +48,7 @@
 
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -55,6 +56,29 @@
 
 namespace flatland_server
 {
+
+namespace
+{
+/**
+ * @brief Push a Lua number, preferring the integer subtype for integral values
+ *
+ * Lua 5.1 had a single (floating point) number type, so 223 rendered as "223".
+ * Lua 5.3+ separates integers from floats and renders a float 223 as "223.0",
+ * which would silently change every preprocessed YAML value. Pushing integral
+ * values as integers preserves the original formatting.
+ */
+void PushLuaNumber(lua_State * L, double value)
+{
+  // The bounds are exact powers of two, so the double comparison is precise.
+  if (std::isfinite(value) && value == std::floor(value) && value >= -9223372036854775808.0 &&
+    value < 9223372036854775808.0)
+  {
+    lua_pushinteger(L, static_cast<lua_Integer>(value));
+  } else {
+    lua_pushnumber(L, value);
+  }
+}
+}  // namespace
 
 void YamlPreprocessor::Parse(YAML::Node & node) { this->ProcessNodes(node); }
 
@@ -162,7 +186,7 @@ int YamlPreprocessor::LuaGetEnv(lua_State * L)
 
   if (lua_gettop(L) == 2 && env == NULL) {  // use default
     if (lua_isnumber(L, 2)) {
-      lua_pushnumber(L, lua_tonumber(L, 2));
+      PushLuaNumber(L, lua_tonumber(L, 2));
     } else if (lua_isstring(L, 2)) {
       lua_pushstring(L, lua_tostring(L, 2));
     } else if (lua_isboolean(L, 2)) {
@@ -177,7 +201,7 @@ int YamlPreprocessor::LuaGetEnv(lua_State * L)
       RCLCPP_WARN_STREAM(rclcpp::get_logger("Yaml Preprocessor"), "Found env for " << name);
       try {  // Try to push a number
         double x = boost::lexical_cast<double>(env);
-        lua_pushnumber(L, x);
+        PushLuaNumber(L, x);
       } catch (boost::bad_lexical_cast &) {  // Otherwise it's a string
         lua_pushstring(L, env);
       }
@@ -200,7 +224,7 @@ int YamlPreprocessor::LuaGetParam(lua_State * L)
 
   if (lua_gettop(L) == 2 && !class_pointer->ros_node_->has_parameter(name)) {  // use default
     if (lua_isnumber(L, 2)) {
-      lua_pushnumber(L, lua_tonumber(L, 2));
+      PushLuaNumber(L, lua_tonumber(L, 2));
     } else if (lua_isboolean(L, 2)) {
       lua_pushboolean(L, lua_toboolean(L, 2));
     } else if (lua_isstring(L, 2)) {

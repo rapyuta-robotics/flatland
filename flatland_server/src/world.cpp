@@ -201,7 +201,10 @@ void World::LoadLayers(YamlReader & layers_reader)
       }
     }
 
-    if (map_path.string().front() != '/' && map_path.string().length() > 0) {
+    // The length check must come first: front() on an empty string is UB, and
+    // GCC 15's _GLIBCXX_ASSERTIONS aborts on it. Layers with no map file (e.g.
+    // line-segment layers) reach here with an empty path.
+    if (map_path.string().length() > 0 && map_path.string().front() != '/') {
       map_path = world_yaml_dir_ / map_path;
     }
 
