@@ -38,7 +38,9 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)# lua5.1
 find_package(Lua 5.1 QUIET)
 
-find_package(Boost REQUIRED COMPONENTS date_time system filesystem)
+# Boost 1.90 / CMake 4.x: Boost.System is header-only (no 'system' component) and
+# date_time is unused here; only filesystem is a compiled component we need.
+find_package(Boost REQUIRED COMPONENTS filesystem)
 
 ##############
 ## coverage ##
@@ -71,7 +73,10 @@ add_library(flatland_plugins_lib SHARED
   src/gps.cpp
 )
 
-ament_target_dependencies(flatland_plugins_lib rclcpp flatland_server flatland_msgs pluginlib std_msgs nav_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs yaml_cpp_vendor)
+# ament_target_dependencies() was removed in ROS 2 Lyrical; link modern targets.
+foreach(dep IN ITEMS rclcpp flatland_server flatland_msgs pluginlib std_msgs nav_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs yaml_cpp_vendor)
+  target_link_libraries(flatland_plugins_lib ${${dep}_TARGETS})
+endforeach()
 
 target_include_directories(flatland_plugins_lib PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -84,7 +89,10 @@ target_include_directories(flatland_plugins_lib PUBLIC
 
 
 target_link_libraries(flatland_plugins_lib
-  ${Eigen3_LIBRARIES}
+  # Eigen3_INCLUDE_DIRS/Eigen3_LIBRARIES are empty with the modern Eigen3 config;
+  # the imported target carries the include dirs that ament_target_dependencies
+  # used to pull in transitively.
+  Eigen3::Eigen
   ${LUA_LIBRARIES}
   ${OpenCV_LIBRARIES}
   yaml-cpp

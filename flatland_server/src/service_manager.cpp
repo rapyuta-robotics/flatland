@@ -122,10 +122,10 @@ bool ServiceManager::SpawnModel(
     rclcpp::get_logger("ServiceManager"),
     "Model spawn requested with path(\"%s\"), namespace(\"%s\"), "
     "name(\'%s\"), pose(%f,%f,%f)",
-    request->yaml_path.c_str(), request->ns.c_str(), request->name.c_str(), request->pose.x,
-    request->pose.y, request->pose.theta);
+    request->yaml_path.c_str(), request->ns.c_str(), request->name.c_str(), request->pose.position.x,
+    request->pose.position.y, request->pose.theta);
 
-  Pose pose(request->pose.x, request->pose.y, request->pose.theta);
+  Pose pose(request->pose.position.x, request->pose.position.y, request->pose.theta);
 
   try {
     world_->LoadModel(request->yaml_path, request->ns, request->name, pose);
@@ -177,7 +177,7 @@ bool ServiceManager::MoveModel(
     rclcpp::get_logger("ServiceManager"), "Model move requested with name(\"%s\")",
     request->name.c_str());
 
-  Pose pose(request->pose.x, request->pose.y, request->pose.theta);
+  Pose pose(request->pose.position.x, request->pose.position.y, request->pose.theta);
 
   try {
     world_->MoveModel(request->name, pose);

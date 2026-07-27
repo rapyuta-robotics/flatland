@@ -32,14 +32,18 @@ find_package(flatland_msgs REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
 find_package(flatland_box2d REQUIRED)
 
-# lua5.1
-find_package(Lua 5.1 QUIET)
+# Lua: code uses only standard 5.1..5.4-compatible calls; the system ships the
+# 5.4 runtime, so accept any Lua and require it (it's a hard dependency of the
+# YAML preprocessor).
+find_package(Lua REQUIRED)
 
 # OpenCV
 find_package(OpenCV REQUIRED)
 
 # Boost
-find_package(Boost REQUIRED COMPONENTS date_time system filesystem)
+# Boost 1.90 / CMake 4.x: Boost.System is header-only (no 'system' component) and
+# date_time is unused here; only filesystem is a compiled component we need.
+find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(Threads)
 
 ##############
@@ -89,7 +93,11 @@ target_include_directories(flatland_lib
     $<INSTALL_INTERFACE:include>
     ${LUA_INCLUDE_DIR})
 
-ament_target_dependencies(flatland_lib flatland_box2d rclcpp flatland_msgs yaml_cpp_vendor pluginlib geometry_msgs std_srvs tf2 tf2_ros tf2_geometry_msgs visualization_msgs interactive_markers sensor_msgs)
+# ament_target_dependencies() was removed in ROS 2 Lyrical; link the modern
+# imported targets (${<pkg>_TARGETS}) instead.
+foreach(dep IN ITEMS flatland_box2d rclcpp flatland_msgs yaml_cpp_vendor pluginlib geometry_msgs std_srvs tf2 tf2_ros tf2_geometry_msgs visualization_msgs interactive_markers sensor_msgs)
+  target_link_libraries(flatland_lib ${${dep}_TARGETS})
+endforeach()
 
 target_link_libraries(flatland_lib
   ${OpenCV_LIBRARIES}
@@ -101,7 +109,9 @@ target_link_libraries(flatland_lib
 
 ## Declare a C++ executable
 add_executable(flatland_server src/flatland_server_node.cpp)
-ament_target_dependencies(flatland_server flatland_box2d rclcpp flatland_msgs yaml_cpp_vendor pluginlib geometry_msgs std_srvs tf2 tf2_ros tf2_geometry_msgs visualization_msgs interactive_markers)
+foreach(dep IN ITEMS flatland_box2d rclcpp flatland_msgs yaml_cpp_vendor pluginlib geometry_msgs std_srvs tf2 tf2_ros tf2_geometry_msgs visualization_msgs interactive_markers)
+  target_link_libraries(flatland_server ${${dep}_TARGETS})
+endforeach()
 
 target_include_directories(flatland_server
   PUBLIC

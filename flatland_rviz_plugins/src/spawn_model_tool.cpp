@@ -190,8 +190,10 @@ void SpawnModelTool::SpawnModelInFlatland()
   srv->name = model_name.toStdString();
   srv->ns = model_name.toStdString();
   srv->yaml_path = path_to_model_file_.toStdString();
-  srv->pose.x = intersection[0];
-  srv->pose.y = intersection[1];
+  // SpawnModel uses vision_msgs/Pose2D (geometry_msgs/Pose2D was removed in ROS 2);
+  // x/y live under .position, theta stays flat.
+  srv->pose.position.x = intersection[0];
+  srv->pose.position.y = intersection[1];
   srv->pose.theta = initial_angle;
 
   std::shared_ptr<rclcpp::Node> node =
