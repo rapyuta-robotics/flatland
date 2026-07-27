@@ -60,6 +60,11 @@
 namespace flatland_plugins
 {
 
+double TricycleDrive::SampleNoise(size_t i)
+{
+  return noise_std_dev_[i] > 0.0 ? noise_gen_[i](rng_) : 0.0;
+}
+
 void TricycleDrive::OnInitialize(const YAML::Node & config)
 {
   YamlReader r(node_, config);
@@ -160,11 +165,14 @@ void TricycleDrive::OnInitialize(const YAML::Node & config)
   rng_ = default_random_engine(rd());
   for (unsigned int i = 0; i < 3; i++) {
     // variance is standard deviation squared
-    noise_gen_[i] = normal_distribution<double>(0.0, sqrt(odom_pose_noise[i]));
+    noise_std_dev_[i] = sqrt(odom_pose_noise[i]);
+    noise_std_dev_[i + 3] = sqrt(odom_twist_noise[i]);
   }
 
-  for (unsigned int i = 0; i < 3; i++) {
-    noise_gen_[i + 3] = normal_distribution<double>(0.0, sqrt(odom_twist_noise[i]));
+  for (unsigned int i = 0; i < 6; i++) {
+    if (noise_std_dev_[i] > 0.0) {
+      noise_gen_[i] = normal_distribution<double>(0.0, noise_std_dev_[i]);
+    }
   }
 
   RCLCPP_DEBUG(
@@ -311,13 +319,13 @@ void TricycleDrive::BeforePhysicsStep(const Timekeeper & timekeeper)
     odom_msg_.header.stamp = timekeeper.GetSimTime();
     odom_msg_.pose.pose = ground_truth_msg_.pose.pose;
     odom_msg_.twist.twist = ground_truth_msg_.twist.twist;
-    odom_msg_.pose.pose.position.x += noise_gen_[0](rng_);
-    odom_msg_.pose.pose.position.y += noise_gen_[1](rng_);
-    q.setRPY(0, 0, angle + noise_gen_[2](rng_));
+    odom_msg_.pose.pose.position.x += SampleNoise(0);
+    odom_msg_.pose.pose.position.y += SampleNoise(1);
+    q.setRPY(0, 0, angle + SampleNoise(2));
     odom_msg_.pose.pose.orientation = tf2::toMsg(q);
-    odom_msg_.twist.twist.linear.x += noise_gen_[3](rng_);
-    odom_msg_.twist.twist.linear.y += noise_gen_[4](rng_);
-    odom_msg_.twist.twist.angular.z += noise_gen_[5](rng_);
+    odom_msg_.twist.twist.linear.x += SampleNoise(3);
+    odom_msg_.twist.twist.linear.y += SampleNoise(4);
+    odom_msg_.twist.twist.angular.z += SampleNoise(5);
 
     ground_truth_pub_->publish(ground_truth_msg_);
     odom_pub_->publish(odom_msg_);

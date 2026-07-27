@@ -91,6 +91,9 @@ public:
 
   default_random_engine rng_;
   array<normal_distribution<double>, 6> noise_gen_;
+  array<double, 6> noise_std_dev_{};
+
+  double SampleNoise(size_t i);
 
   /**
    * @name                OnInitialize

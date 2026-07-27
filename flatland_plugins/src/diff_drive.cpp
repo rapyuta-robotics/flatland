@@ -61,6 +61,11 @@ namespace flatland_plugins
 
 void DiffDrive::TwistCallback(const geometry_msgs::msg::TwistStamped::SharedPtr msg) { twist_msg_ = msg; }
 
+double DiffDrive::SampleNoise(size_t i)
+{
+  return noise_std_dev_[i] > 0.0 ? noise_gen_[i](rng_) : 0.0;
+}
+
 void DiffDrive::OnInitialize(const YAML::Node & config)
 {
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(node_);
@@ -68,6 +73,8 @@ void DiffDrive::OnInitialize(const YAML::Node & config)
   YamlReader reader(node_, config);
   enable_odom_pub_ = reader.Get<bool>("enable_odom_pub", true);
   enable_twist_pub_ = reader.Get<bool>("enable_twist_pub", true);
+  enable_ground_truth_pub_ = reader.Get<bool>("enable_ground_truth_pub", true);
+  enable_tf_pub_ = reader.Get<bool>("enable_tf_pub", true);
   std::string body_name = reader.Get<std::string>("body");
   std::string odom_frame_id = reader.Get<std::string>("odom_frame_id", "odom");
 
@@ -124,6 +131,9 @@ void DiffDrive::OnInitialize(const YAML::Node & config)
     twist_topic, 1, std::bind(&DiffDrive::TwistCallback, this, _1));
   if (enable_odom_pub_) {
     odom_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>(odom_topic, 1);
+  }
+
+  if (enable_ground_truth_pub_) {
     ground_truth_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>(ground_truth_topic, 1);
   }
 
@@ -149,11 +159,14 @@ void DiffDrive::OnInitialize(const YAML::Node & config)
   rng_ = std::default_random_engine(rd());
   for (unsigned int i = 0; i < 3; i++) {
     // variance is standard deviation squared
-    noise_gen_[i] = std::normal_distribution<double>(0.0, sqrt(odom_pose_noise[i]));
+    noise_std_dev_[i] = sqrt(odom_pose_noise[i]);
+    noise_std_dev_[i + 3] = sqrt(odom_twist_noise[i]);
   }
 
-  for (unsigned int i = 0; i < 3; i++) {
-    noise_gen_[i + 3] = std::normal_distribution<double>(0.0, sqrt(odom_twist_noise[i]));
+  for (unsigned int i = 0; i < 6; i++) {
+    if (noise_std_dev_[i] > 0.0) {
+      noise_gen_[i] = std::normal_distribution<double>(0.0, noise_std_dev_[i]);
+    }
   }
 
   RCLCPP_DEBUG(
@@ -200,16 +213,19 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper & timekeeper)
     odom_msg_.header.stamp = timekeeper.GetSimTime();
     odom_msg_.pose.pose = ground_truth_msg_.pose.pose;
     odom_msg_.twist.twist = ground_truth_msg_.twist.twist;
-    odom_msg_.pose.pose.position.x += noise_gen_[0](rng_);
-    odom_msg_.pose.pose.position.y += noise_gen_[1](rng_);
-    q.setRPY(0, 0, angle + noise_gen_[2](rng_));
+    odom_msg_.pose.pose.position.x += SampleNoise(0);
+    odom_msg_.pose.pose.position.y += SampleNoise(1);
+    q.setRPY(0, 0, angle + SampleNoise(2));
     odom_msg_.pose.pose.orientation = tf2::toMsg(q);
-    odom_msg_.twist.twist.linear.x += noise_gen_[3](rng_);
-    odom_msg_.twist.twist.linear.y += noise_gen_[4](rng_);
-    odom_msg_.twist.twist.angular.z += noise_gen_[5](rng_);
+    odom_msg_.twist.twist.linear.x += SampleNoise(3);
+    odom_msg_.twist.twist.linear.y += SampleNoise(4);
+    odom_msg_.twist.twist.angular.z += SampleNoise(5);
+
+    if (enable_ground_truth_pub_) {
+      ground_truth_pub_->publish(ground_truth_msg_);
+    }
 
     if (enable_odom_pub_) {
-      ground_truth_pub_->publish(ground_truth_msg_);
       odom_pub_->publish(odom_msg_);
     }
 
@@ -222,22 +238,24 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper & timekeeper)
 
       // Forward velocity in twist.linear.x
       twist_pub_msg.twist.linear.x =
-        cos(angle) * linear_vel_local.x + sin(angle) * linear_vel_local.y + noise_gen_[3](rng_);
+        cos(angle) * linear_vel_local.x + sin(angle) * linear_vel_local.y + SampleNoise(3);
 
       // Angular velocity in twist.angular.z
-      twist_pub_msg.twist.angular.z = angular_vel + noise_gen_[5](rng_);
+      twist_pub_msg.twist.angular.z = angular_vel + SampleNoise(5);
       twist_pub_->publish(twist_pub_msg);
     }
 
     // publish odom tf
-    geometry_msgs::msg::TransformStamped odom_tf;
-    odom_tf.header = odom_msg_.header;
-    odom_tf.child_frame_id = odom_msg_.child_frame_id;
-    odom_tf.transform.translation.x = odom_msg_.pose.pose.position.x;
-    odom_tf.transform.translation.y = odom_msg_.pose.pose.position.y;
-    odom_tf.transform.translation.z = 0;
-    odom_tf.transform.rotation = odom_msg_.pose.pose.orientation;
-    tf_broadcaster_->sendTransform(odom_tf);
+    if (enable_tf_pub_) {
+      geometry_msgs::msg::TransformStamped odom_tf;
+      odom_tf.header = odom_msg_.header;
+      odom_tf.child_frame_id = odom_msg_.child_frame_id;
+      odom_tf.transform.translation.x = odom_msg_.pose.pose.position.x;
+      odom_tf.transform.translation.y = odom_msg_.pose.pose.position.y;
+      odom_tf.transform.translation.z = 0;
+      odom_tf.transform.rotation = odom_msg_.pose.pose.orientation;
+      tf_broadcaster_->sendTransform(odom_tf);
+    }
   }
 
   // we apply the twist velocities, this must be done every physics step to make

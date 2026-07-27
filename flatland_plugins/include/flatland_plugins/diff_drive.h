@@ -77,9 +77,14 @@ public:
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;  ///< For publish ROS TF
   bool enable_odom_pub_;   ///< YAML parameter to enable odom publishing
   bool enable_twist_pub_;  ///< YAML parameter to enable twist publishing
+  bool enable_ground_truth_pub_;  ///< YAML parameter to enable ground truth publishing
+  bool enable_tf_pub_;            ///< YAML parameter to enable odom tf publishing
 
   std::default_random_engine rng_;
   std::array<std::normal_distribution<double>, 6> noise_gen_;
+  std::array<double, 6> noise_std_dev_{};
+
+  double SampleNoise(size_t i);
 
   /**
    * @name          OnInitialize
