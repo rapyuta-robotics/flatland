@@ -61,15 +61,11 @@ namespace
 {
 /**
  * @brief Push a Lua number, preferring the integer subtype for integral values
- *
- * Lua 5.1 had a single (floating point) number type, so 223 rendered as "223".
- * Lua 5.3+ separates integers from floats and renders a float 223 as "223.0",
- * which would silently change every preprocessed YAML value. Pushing integral
- * values as integers preserves the original formatting.
+ * @param[in] L The lua state/stack to push to
+ * @param[in] value The number to push
  */
 void PushLuaNumber(lua_State * L, double value)
 {
-  // The bounds are exact powers of two, so the double comparison is precise.
   if (std::isfinite(value) && value == std::floor(value) && value >= -9223372036854775808.0 &&
     value < 9223372036854775808.0)
   {

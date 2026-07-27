@@ -71,10 +71,6 @@ public:
 
   ServiceManagerTest() : ServiceManagerTest(rclcpp::Node::make_shared("test_service_manager")) {}
 
-  // The simulation thread spins `node`, so the test thread must not also spin
-  // it -- ROS 2 Lyrical throws when a node is added to a second executor. The
-  // service clients live on this separate node instead, which the test thread
-  // is free to spin.
   rclcpp::Node::SharedPtr client_node =
     rclcpp::Node::make_shared("test_service_manager_client");
 
@@ -107,8 +103,6 @@ protected:
       std::thread(&ServiceManagerTest::SimulationThread, dynamic_cast<ServiceManagerTest *>(this));
   }
 
-  // Safe to call more than once: tests stop the thread before inspecting world
-  // state, and TearDown() stops it again for tests that did not.
   void StopSimulationThread()
   {
     if (simulation_thread.joinable()) {

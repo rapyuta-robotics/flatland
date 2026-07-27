@@ -48,9 +48,6 @@
 #define FLATLAND_SERVER_YAML_PREPROCESSOR_H
 
 #include <flatland_server/exceptions.h>
-// lua.hpp wraps lua.h/lualib.h/lauxlib.h in extern "C". The plain C headers
-// carry no linkage guard, so including them here mangles the symbols as C++
-// and they no longer resolve against the C liblua.
 #include <lua.hpp>
 #include <yaml-cpp/yaml.h>
 

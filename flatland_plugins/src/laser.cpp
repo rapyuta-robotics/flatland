@@ -273,8 +273,6 @@ void Laser::ParseParameters(const YAML::Node & config)
   // init the random number generators
   std::random_device rd;
   rng_ = std::default_random_engine(rd());
-  // std::normal_distribution requires stddev > 0; noise_std_dev of 0 (the
-  // default) means "no noise", and the generator is skipped at the call site.
   if (noise_std_dev_ > 0.0) {
     noise_gen_ = std::normal_distribution<double>(0.0, noise_std_dev_);
   }

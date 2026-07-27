@@ -38,8 +38,6 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)# lua5.1
 find_package(Lua 5.1 QUIET)
 
-# Boost 1.90 / CMake 4.x: Boost.System is header-only (no 'system' component) and
-# date_time is unused here; only filesystem is a compiled component we need.
 find_package(Boost REQUIRED COMPONENTS filesystem)
 
 ##############
@@ -89,9 +87,6 @@ target_include_directories(flatland_plugins_lib PUBLIC
 
 
 target_link_libraries(flatland_plugins_lib
-  # Eigen3_INCLUDE_DIRS/Eigen3_LIBRARIES are empty with the modern Eigen3 config;
-  # the imported target carries the include dirs that ament_target_dependencies
-  # used to pull in transitively.
   Eigen3::Eigen
   ${LUA_LIBRARIES}
   ${OpenCV_LIBRARIES}

@@ -35,8 +35,6 @@ find_package(flatland_msgs REQUIRED)
 find_package(Lua 5.1 REQUIRED)
 
 # Boost
-# Boost 1.90 / CMake 4.x: Boost.System is header-only (no 'system' component) and
-# date_time is unused here; only filesystem is a compiled component we need.
 find_package(Boost REQUIRED COMPONENTS filesystem)
 
 set(flatland_rviz_plugins_headers_to_moc
