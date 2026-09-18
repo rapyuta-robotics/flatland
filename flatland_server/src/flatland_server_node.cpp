@@ -44,32 +44,48 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <signal.h>
+#include <atomic>
+#include <csignal>
 
 #include <string>
 
 #include "flatland_server/simulation_manager.h"
 #include "rclcpp/rclcpp.hpp"
 
-/** Global variables */
-//
-
 /**
- * @name        SigintHandler
- * @brief       Interrupt handler - sends shutdown signal to simulation_manager
- * @param[in]   sig: signal itself
+ * The default rclcpp::init() leaves shutdown_on_signal=true, which tears the
+ * global context down from rclcpp's own internal signal-handling thread the
+ * instant SIGINT is delivered -- asynchronously with respect to wherever the
+ * simulation loop happens to be. That race produces two distinct teardown
+ * failures: an abort inside the loop, where a fresh SingleThreadedExecutor's
+ * GuardCondition is constructed against a context that has just been shut
+ * down mid-iteration; and a module-unload SIGSEGV at process exit, where Fast
+ * DDS's UDP receive threads are still executing while an exit handler
+ * dlclose()s the rmw cluster out from under them, because the loop -- and
+ * everything downstream of it -- never reaches a quiescent state before the
+ * context dies.
+ *
+ * The fix: disable shutdown_on_signal and register our own SIGINT handler
+ * that only flips SimulationManager::run_simulator_, the loop's own exit
+ * flag. That lets the main thread -- and only the main thread -- decide when
+ * the loop is done, drive the world/thread-pool teardown that follows it,
+ * and only then call rclcpp::shutdown() once, from a known, non-signal
+ * context. A signal handler must stay async-signal-safe, so it does nothing
+ * but this store; no logging, no rclcpp calls.
  */
-// void SigintHandler(int sig) {
-//   RCLCPP_WARN(rclcpp::get_logger("Node"), "*** Shutting down... ***");
+namespace
+{
+std::atomic<flatland_server::SimulationManager *> g_active_simulation_manager{nullptr};
 
-//   if (simulation_manager != nullptr) {
-//     simulation_manager->Shutdown();
-//     delete simulation_manager;
-//     simulation_manager = nullptr;
-//   }
-//   RCLCPP_INFO_STREAM_NAMED("Node", "Beginning ros shutdown");
-//   rclcpp::shutdown();
-// }
+extern "C" void SigintHandler(int /*sig*/)
+{
+  flatland_server::SimulationManager * manager =
+    g_active_simulation_manager.load(std::memory_order_acquire);
+  if (manager != nullptr) {
+    manager->run_simulator_ = false;
+  }
+}
+}  // namespace
 
 class FlatlandServerNode : public rclcpp::Node
 {
@@ -100,8 +116,13 @@ public:
     simulation_manager_ = std::make_shared<flatland_server::SimulationManager>(
       shared_from_this(), world_path_, update_rate_, step_size_, show_viz_, viz_pub_rate_);
 
+    // Published for SigintHandler's duration only: the handler must reach a
+    // live SimulationManager without calling into anything non-signal-safe.
+    g_active_simulation_manager.store(simulation_manager_.get(), std::memory_order_release);
+
     RCLCPP_INFO(this->get_logger(), "Initialized");
     simulation_manager_->Main();
+    g_active_simulation_manager.store(nullptr, std::memory_order_release);
 
     RCLCPP_INFO(this->get_logger(), "Returned from simulation manager main2");
   }
@@ -124,7 +145,20 @@ private:
  */
 int main(int argc, char ** argv)
 {
-  rclcpp::init(argc, argv);
+  // shutdown_on_signal=false: see the comment above SigintHandler. Shutdown
+  // is driven from here, once, after Run() returns with the loop already
+  // stopped and the world already torn down -- not from rclcpp's internal
+  // signal-handling thread while either is still live.
+  rclcpp::InitOptions init_options;
+  init_options.shutdown_on_signal = false;
+  rclcpp::init(argc, argv, init_options);
+
+  struct sigaction sigint_action = {};
+  sigint_action.sa_handler = SigintHandler;
+  sigemptyset(&sigint_action.sa_mask);
+  sigint_action.sa_flags = 0;
+  sigaction(SIGINT, &sigint_action, nullptr);
+
   auto flatland_server = std::make_shared<FlatlandServerNode>();
   flatland_server->Run();
   rclcpp::shutdown();

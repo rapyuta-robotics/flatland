@@ -135,7 +135,20 @@ void SimulationManager::Main()
       DebugVisualization::Get(node_)->Publish(timekeeper);  // publish debug visualization
     }
 
-    rclcpp::spin_some(node_);
+    try {
+      rclcpp::spin_some(node_);
+    } catch (const std::exception & e) {
+      // Belt-and-braces: with shutdown_on_signal disabled and shutdown now
+      // driven only from the main thread after this loop exits
+      // (flatland_server_node.cpp), the context should never die mid-loop.
+      // If it ever does -- another node in-process, a future rclcpp change --
+      // this turns what would otherwise be an uncaught
+      // rclcpp::exceptions::RCLError (std::terminate, SIGABRT) into a clean
+      // loop exit instead of a crash.
+      RCLCPP_ERROR(
+        rclcpp::get_logger("SimMan"), "spin_some failed, ending simulation loop: %s", e.what());
+      break;
+    }
     double cycle_time = wall_clock.now().seconds() - start_time;
     rate_->sleep();
 

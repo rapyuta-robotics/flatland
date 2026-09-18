@@ -52,6 +52,7 @@
 #include <flatland_server/timekeeper.h>
 #include <flatland_server/world.h>
 
+#include <atomic>
 #include <rclcpp/rclcpp.hpp>
 #include <string>
 
@@ -62,7 +63,10 @@ class SimulationManager
 {
 public:
   std::shared_ptr<rclcpp::Node> node_;
-  bool run_simulator_;           ///<  While true, keep running the sim loop
+  // Set from flatland_server_node.cpp's SIGINT handler as well as from
+  // Shutdown(); atomic because the SIGINT handler must not touch anything
+  // wider than a lock-free store.
+  std::atomic<bool> run_simulator_;  ///<  While true, keep running the sim loop
   World * world_;                ///< Simulation world
   double update_rate_;           ///< sim loop rate
   double step_size_;             ///< step size
