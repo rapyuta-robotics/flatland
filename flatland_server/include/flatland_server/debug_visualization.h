@@ -82,6 +82,23 @@ public:
   static std::shared_ptr<DebugVisualization> Get(rclcpp::Node::SharedPtr node);
 
   /**
+   * @brief Release the singleton and the node/publisher references it holds.
+   *
+   * `Get()`'s instance is function-local static storage, so without this it
+   * is destroyed only at static-destruction time -- during the C++
+   * runtime's own atexit/DSO-finalizer chain, which runs after main()
+   * returns and can unmap a shared library (e.g. the DDS middleware) while
+   * that library's own threads are still executing in it. Holding a
+   * shared_ptr to the node in this singleton is one of the references that
+   * can keep a node alive past main() if nothing releases it explicitly.
+   * Callers that want the node this instance holds to be destructible
+   * before that point (flatland_server_node.cpp's main()) must call this
+   * once the simulation loop has stopped and before the last other
+   * reference to the node is dropped.
+   */
+  static void Reset();
+
+  /**
    * @brief Publish all marker array topics_ that need publishing
    * @param[in] timekeeper The time object to use for header timestamps
    */

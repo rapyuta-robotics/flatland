@@ -48,28 +48,48 @@
 
 #include <string>
 
+#include "flatland_server/debug_visualization.h"
 #include "flatland_server/simulation_manager.h"
 #include "rclcpp/rclcpp.hpp"
 
-/** Global variables */
-//
-
 /**
- * @name        SigintHandler
- * @brief       Interrupt handler - sends shutdown signal to simulation_manager
- * @param[in]   sig: signal itself
+ * Without explicit teardown, FlatlandServerNode is never destroyed before
+ * the process exits, because two independent references keep it alive:
+ *
+ * 1. A shared_ptr reference cycle. FlatlandServerNode owns a
+ *    SimulationManager (simulation_manager_ below), and SimulationManager's
+ *    own node_ member (simulation_manager.h) is a shared_ptr back to the
+ *    very node that constructed it (shared_from_this() at construction).
+ *    Neither object's refcount can ever reach zero while the other is
+ *    alive, so absent an explicit break, both are leaked for the life of
+ *    the process and neither destructor ever runs.
+ * 2. DebugVisualization::Get()'s singleton (debug_visualization.h)
+ *    independently holds a third shared_ptr to this node, taken the first
+ *    time visualization is published.
+ *
+ * With the cycle alone, ~FlatlandServerNode() -- and, transitively,
+ * ~rclcpp::Node(), which is what triggers rmw_destroy_node() for this
+ * node's publishers, subscriptions and DDS participant -- never runs at
+ * all, not merely late. `rclcpp::shutdown()` does not help: it tears down
+ * the global rclcpp Context, not any individual node's rmw entities, so
+ * calling it does not stop this node's DDS receive threads. What actually
+ * happens instead is that the process eventually reaches the C++ runtime's
+ * own exit-time atexit/DSO-finalizer chain, which can unmap a shared
+ * library (e.g. the DDS middleware) while that library's own threads are
+ * still executing in it -- a module-unload race, not a deterministic
+ * teardown.
+ *
+ * The fix is not about SIGINT delivery (see the fork's separate
+ * fix/teardown-shutdown-race branch for that, a different mechanism, not
+ * touched here): it is to make sure nothing outlives main(). Run() below
+ * drops this node's own reference to SimulationManager once Main() returns;
+ * main() drops DebugVisualization's singleton reference and then this
+ * node's last remaining shared_ptr, in that order, before calling
+ * rclcpp::shutdown() -- so ~FlatlandServerNode() (and whatever rmw/DDS
+ * teardown it triggers) runs synchronously on the main thread while every
+ * library is still fully mapped, not from an exit-time destructor racing
+ * DDS's own receive threads.
  */
-// void SigintHandler(int sig) {
-//   RCLCPP_WARN(rclcpp::get_logger("Node"), "*** Shutting down... ***");
-
-//   if (simulation_manager != nullptr) {
-//     simulation_manager->Shutdown();
-//     delete simulation_manager;
-//     simulation_manager = nullptr;
-//   }
-//   RCLCPP_INFO_STREAM_NAMED("Node", "Beginning ros shutdown");
-//   rclcpp::shutdown();
-// }
 
 class FlatlandServerNode : public rclcpp::Node
 {
@@ -104,6 +124,13 @@ public:
     simulation_manager_->Main();
 
     RCLCPP_INFO(this->get_logger(), "Returned from simulation manager main2");
+
+    // Break the FlatlandServerNode <-> SimulationManager shared_ptr cycle:
+    // SimulationManager::node_ (simulation_manager.h) holds a shared_ptr
+    // back to this node. Without this reset neither object's refcount can
+    // reach zero, so ~FlatlandServerNode() never runs at all -- see the
+    // file header comment above for the full reference-cycle explanation.
+    simulation_manager_.reset();
   }
 
   // TODO: Allow updates to step size, update rate etc. with new ros2 dynamic
@@ -127,6 +154,18 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   auto flatland_server = std::make_shared<FlatlandServerNode>();
   flatland_server->Run();
+
+  // Explicit, ordered teardown while the process, rclcpp context and every
+  // library are still fully mapped. Run() already dropped this node's own
+  // reference to SimulationManager; DebugVisualization::Reset() drops the
+  // debug-viz singleton's reference (debug_visualization.h) -- the last
+  // other place this node's shared_ptr refcount could still be pinned.
+  // Resetting `flatland_server` then drops the only remaining reference,
+  // so ~FlatlandServerNode() runs synchronously right here, not from an
+  // exit-time destructor racing Fast DDS's own receive threads. See the
+  // file header comment above for the full reference-cycle explanation.
+  flatland_server::DebugVisualization::Reset();
+  flatland_server.reset();
   rclcpp::shutdown();
   return 0;
 }

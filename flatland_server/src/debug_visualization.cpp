@@ -64,15 +64,24 @@ DebugVisualization::DebugVisualization(rclcpp::Node::SharedPtr node) : node_(nod
   topic_list_publisher_ = node_->create_publisher<flatland_msgs::msg::DebugTopicList>("topics", 1);
 }
 
+namespace
+{
+// Shared with Reset() below, unlike a function-local static, so the
+// singleton can be torn down explicitly from main() instead of only ever
+// at static-destruction time. See the header comment on Reset().
+std::shared_ptr<DebugVisualization> g_debug_visualization_instance;
+}  // namespace
+
 std::shared_ptr<DebugVisualization> DebugVisualization::Get(rclcpp::Node::SharedPtr node)
 {
-  static std::shared_ptr<DebugVisualization> instance;
   // todo: fix this? How should singletons work with shared pointers?
-  if (!instance) {
-    instance = std::make_shared<DebugVisualization>(node);
+  if (!g_debug_visualization_instance) {
+    g_debug_visualization_instance = std::make_shared<DebugVisualization>(node);
   }
-  return instance;
+  return g_debug_visualization_instance;
 }
+
+void DebugVisualization::Reset() { g_debug_visualization_instance.reset(); }
 
 void DebugVisualization::JointToMarkers(
   visualization_msgs::msg::MarkerArray & markers, b2Joint * joint, float r, float g, float b,
