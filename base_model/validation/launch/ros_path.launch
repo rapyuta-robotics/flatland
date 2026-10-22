@@ -1,6 +1,6 @@
 <launch>
   <!-- Information only: replay through a ROS node that publishes /cmd_vel from outside flatland, to measure the hop and
-       the jitter of an ordinary ROS command path (`fbm validate hop --information`). The fidelity gates use
+       the jitter of an ordinary ROS command path (`fbm validate hop` with its information option). The fidelity gates use
        validation.launch. -->
   <arg name="world"     default="base_model"/>
   <arg name="drives"/>
