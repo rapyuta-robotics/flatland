@@ -15,6 +15,10 @@
 * Optionally check out [turtlebot_flatland](https://github.com/avidbots/turtlebot_flatland) and run the turtlebot nav stack
 * Run `rosdep install --from-paths src --ignore-src` in your catkin workspace to install any missing rosdeps
 
+### Base model drive ###
+
+* `flatland_plugins::BaseModelDrive` makes a differential-drive model move like a measured real base (command delay, lags, rate limits, yaw-rate scale). Parameter files and the calibration and validation tool are in [base_model/](base_model/README.md)
+
 ### Who do I talk to? ###
 
 * Please direct any questions to @josephduchesne

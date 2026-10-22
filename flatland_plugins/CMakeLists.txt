@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   rostest
   pluginlib
   roscpp
+  roslib
   flatland_server
   cmake_modules
   tf
@@ -72,6 +73,8 @@ add_library(flatland_plugins_lib
   src/laser.cpp
   src/tricycle_drive.cpp
   src/diff_drive.cpp
+  src/base_model_drive.cpp
+  src/command_playback.cpp
   src/dynamics_limits.cpp
   src/model_tf_publisher.cpp
   src/update_timer.cpp
@@ -82,6 +85,9 @@ add_library(flatland_plugins_lib
   src/world_random_wall.cpp
   src/gps.cpp
 )
+
+# BaseModelDrive must reproduce the reference stepper to 1e-9: no fused multiply-add.
+set_source_files_properties(src/base_model_drive.cpp PROPERTIES COMPILE_FLAGS -ffp-contract=off)
 
 add_dependencies(flatland_plugins_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(flatland_plugins_lib
@@ -117,6 +123,17 @@ install(DIRECTORY include/${PROJECT_NAME}/
   FILES_MATCHING PATTERN "*.h"
 )
 
+# Parameter files of BaseModelDrive
+install(DIRECTORY ../base_model/params/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/base_model_params
+  FILES_MATCHING PATTERN "*.yaml"
+)
+
+# Test-only replay node for the base model validation (base_model/validation)
+catkin_install_python(PROGRAMS scripts/base_model_replay.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 # Install plugins file
 install(FILES flatland_plugins.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
@@ -147,6 +164,17 @@ if(CATKIN_ENABLE_TESTING)
   add_rostest_gtest(tricycle_drive_test test/tricycle_drive_test.test
                     test/tricycle_drive_test.cpp)
   target_link_libraries(tricycle_drive_test flatland_plugins_lib)
+
+  # BaseModelDrive: the model and parameter loader are header-only and need only yaml-cpp. The tests read the shared
+  # vectors and the parameter files from base_model/.
+  foreach(base_model_test base_model_shaper_test base_model_params_test command_playback_schedule_test)
+    catkin_add_gtest(${base_model_test} test/${base_model_test}.cpp)
+    target_link_libraries(${base_model_test} yaml-cpp)
+    target_compile_options(${base_model_test} PRIVATE -ffp-contract=off)
+    target_compile_definitions(${base_model_test} PRIVATE
+      FBM_TEST_VECTORS="${CMAKE_CURRENT_SOURCE_DIR}/../base_model/test_vectors/stepper.json"
+      FBM_PARAMS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../base_model/params")
+  endforeach()
 
   add_rostest_gtest(diff_drive_plugin_test test/diff_drive_test.test
                     test/diff_drive_test.cpp)
