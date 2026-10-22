@@ -8,6 +8,12 @@
   <class type="flatland_plugins::DiffDrive" base_class_type="flatland_server::ModelPlugin">
     <description>Flatland differential drive plugin</description>
   </class>
+  <class type="flatland_plugins::BaseModelDrive" base_class_type="flatland_server::ModelPlugin">
+    <description>Differential drive that follows measured real-base behaviour (command delay, lags, rate limits, yaw-rate scale) from a parameter file</description>
+  </class>
+  <class type="flatland_plugins::CommandPlayback" base_class_type="flatland_server::ModelPlugin">
+    <description>Test-only: replays recorded commands inside the step loop and records the ground-truth pose</description>
+  </class>
   <class type="flatland_plugins::ModelTfPublisher" base_class_type="flatland_server::ModelPlugin">
     <description>Publish body transformations</description>
   </class>

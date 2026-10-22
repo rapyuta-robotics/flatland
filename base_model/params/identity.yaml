@@ -1,0 +1,19 @@
+schema_version: 1
+name: identity
+calibrated_step_s: null
+parameters:
+  delay_s: 0.0
+  tau_lin_s: 0.0
+  tau_ang_s: 0.0
+  a_lin_up: .inf
+  a_lin_dn: .inf
+  a_ang: .inf
+  jerk_lin: .inf
+  jerk_ang: .inf
+  yaw_scale: 1.0
+  v_min: -.inf
+  v_max: .inf
+  w_max: .inf
+provenance:
+  note: 'No shaping: the commanded twist is applied unchanged, as stock DiffDrive without dynamics does.
+    Keeps rigid-body motion across the model''s bodies (no weld drag) and the post-step odometry twist.'

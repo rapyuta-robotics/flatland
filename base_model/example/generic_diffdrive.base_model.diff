@@ -1,0 +1,12 @@
+--- a/generic_diffdrive.model.yaml
++++ b/generic_diffdrive.model.yaml
+@@ -33,7 +33,8 @@
+         anchor: [0, 0]
+ 
+ plugins:
+-  - type: DiffDrive
++  - type: BaseModelDrive
++    params_name: example
+     name: drive
+     body: base
+     odom_frame_id: odom

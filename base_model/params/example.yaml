@@ -1,0 +1,20 @@
+# An example parameter file with made-up, round values. It shows the format and is used by the tests; it is not the
+# parameter set of any robot. Fit your own with `fbm fit` (see ../README.md).
+schema_version: 1
+name: example
+calibrated_step_s: 0.02
+parameters:
+  delay_s: 0.1
+  tau_lin_s: 0.1
+  tau_ang_s: 0.2
+  a_lin_up: 1.0
+  a_lin_dn: 2.0
+  a_ang: 2.0
+  jerk_lin: 20.0
+  jerk_ang: 100.0
+  yaw_scale: 0.9
+  v_min: -0.5
+  v_max: 1.5
+  w_max: 2.0
+provenance:
+  note: Made-up values for documentation and tests.

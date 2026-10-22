@@ -1,0 +1,27 @@
+[project]
+name = "flatland-base-model-tool"
+version = "0.1.0"
+description = "Calibration, validation and reference stepper for the flatland base model plugin"
+requires-python = ">=3.12"
+dependencies = [
+    "numba>=0.68.0",
+    "numpy>=2.5.4",
+    "optuna==5.0.0",
+    "pyyaml>=6.0.3",
+    "rosbags>=0.11.8",
+]
+
+[project.scripts]
+fbm = "flatland_base_model_tool.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
