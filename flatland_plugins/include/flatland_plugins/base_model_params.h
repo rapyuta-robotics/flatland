@@ -34,7 +34,7 @@ struct ParamFile {
   std::string name;
   double calibrated_step_s = 0.0;  // 0 when the file is valid at any step size
   Params params;
-  YAML::Node provenance;  // undefined when the file has no provenance
+  YAML::Node provenance;  // a mapping when the file has one; a null node otherwise
 };
 
 namespace detail {
@@ -155,7 +155,7 @@ inline std::string Describe(const ParamFile& f) {
   e << YAML::BeginMap;
   e << YAML::Key << "name" << YAML::Value << f.name;
   e << YAML::Key << "calibrated_step_s" << YAML::Value << f.calibrated_step_s;
-  if (f.provenance.IsDefined())
+  if (f.provenance.IsMap())
     e << YAML::Key << "provenance" << YAML::Value << f.provenance;
   e << YAML::EndMap;
   return e.c_str();

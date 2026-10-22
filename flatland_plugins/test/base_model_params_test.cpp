@@ -60,7 +60,7 @@ TEST(ParamsIo, ProvenanceIsOptional) {
   d.remove("provenance");
   const auto f = ParseParamFile(d);
   EXPECT_EQ(f.name, "t");
-  EXPECT_FALSE(f.provenance.IsDefined());
+  EXPECT_FALSE(f.provenance.IsMap());
   const std::string text = flatland_plugins::base_model::Describe(f);
   EXPECT_NE(text.find("name: t"), std::string::npos);
   EXPECT_NE(text.find("calibrated_step_s"), std::string::npos);
