@@ -1,0 +1,27 @@
+<launch>
+  <!-- Step-synchronous replay of a playback schedule through flatland, for `fbm validate`.
+       schedule: from `fbm playback-schedule`; out: directory for the ground-truth tracks.
+       world:=base_model (BaseModelDrive) or stock (DiffDrive); sim_speed scales the update RATE, the step stays 0.02 s.
+       The CommandPlayback plugin publishes the commands from inside the step loop and shuts the node down at the end. -->
+  <arg name="world"     default="base_model"/>
+  <arg name="schedule"/>
+  <arg name="out"/>
+  <arg name="sim_speed" default="1"/>
+  <arg name="params"    default="$(dirname)/../../params/identity.yaml"/>   <!-- parameter file of BaseModelDrive (world:=base_model) -->
+
+  <param name="/use_sim_time" value="true"/>
+  <node name="flatland_server" pkg="flatland_server" type="flatland_server" output="screen" required="true">
+    <env name="BASE_MODEL_PARAMS_FILE" value="$(arg params)"/>
+    <env name="PLAYBACK_FILE" value="$(arg schedule)"/>
+    <env name="PLAYBACK_OUT"  value="$(arg out)"/>
+    <param name="world_path"          value="$(dirname)/../world/$(arg world).world.yaml"/>
+    <param name="models_path"         value="$(dirname)/../models"/>
+    <param name="world_plugins_path"  value="$(dirname)/../world/world_plugins.yaml"/>
+    <param name="update_rate"         value="$(eval 50.0 * float(arg('sim_speed')))"/>
+    <param name="step_size"           value="0.02"/>
+    <param name="show_viz"            value="false"/>
+    <param name="viz_pub_rate"        value="1.0"/>
+    <param name="velocity_iterations" value="6"/>
+    <param name="position_iterations" value="4"/>
+  </node>
+</launch>

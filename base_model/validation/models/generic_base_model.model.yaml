@@ -1,0 +1,54 @@
+# An invented differential-drive robot: a 1.4 x 1.0 m base (mass 1.4 at density 1) with a welded ballast of 1.0 x 0.56 m
+# at density 3 (mass 1.68), so the welded body is heavier than the base, as the weld drag of stock DiffDrive needs.
+bodies:
+  - name: base
+    pose: [0, 0, 0]
+    type: dynamic
+    color: [1, 1, 1, 0.75]
+    footprints:
+      - type: polygon
+        sensor: true
+        points: [[-0.7, -0.5], [-0.7, 0.5], [0.7, 0.5], [0.7, -0.5]]
+        layers: []
+        density: 1
+
+  - name: ballast
+    pose: [0, 0, 0]
+    type: dynamic
+    color: [0, 0, 1, 1]
+    footprints:
+      - type: polygon
+        sensor: false
+        points: [[-0.5, -0.28], [-0.5, 0.28], [0.5, 0.28], [0.5, -0.28]]
+        layers: ["map"]
+        density: 3
+
+joints:
+  - type: weld
+    name: ballast_weld
+    bodies:
+      - name: ballast
+        anchor: [0, 0]
+      - name: base
+        anchor: [0, 0]
+
+plugins:
+  - type: BaseModelDrive
+    params_file: $eval env("BASE_MODEL_PARAMS_FILE")
+    name: drive
+    body: base
+    odom_frame_id: odom
+    odom_pub: odom
+    enable_odom_pub: true
+    enable_twist_pub: false
+    enable_ground_truth_pub: true
+    enable_tf_pub: false
+    pub_rate: 100
+
+  # test-only: replays the drives of PLAYBACK_FILE inside the step loop and records ground-truth tracks
+  # to PLAYBACK_OUT (both set by the launch file; an empty PLAYBACK_FILE turns it off)
+  - type: CommandPlayback
+    name: playback
+    body: base
+    playback_file: $eval env("PLAYBACK_FILE")
+    playback_out: $eval env("PLAYBACK_OUT")

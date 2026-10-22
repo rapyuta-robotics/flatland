@@ -1,0 +1,29 @@
+<launch>
+  <!-- Information only: replay through a ROS node that publishes /cmd_vel from outside flatland, to measure the hop and
+       the jitter of an ordinary ROS command path (`fbm validate hop --information`). The fidelity gates use
+       validation.launch. -->
+  <arg name="world"     default="base_model"/>
+  <arg name="drives"/>
+  <arg name="out"/>
+  <arg name="sim_speed" default="1"/>
+  <arg name="robot"     default="robot"/>
+  <arg name="params"    default="$(dirname)/../../params/identity.yaml"/>
+
+  <param name="/use_sim_time" value="true"/>
+  <node name="flatland_server" pkg="flatland_server" type="flatland_server" output="screen" required="true">
+    <env name="BASE_MODEL_PARAMS_FILE" value="$(arg params)"/>
+    <env name="PLAYBACK_FILE" value=""/>
+    <env name="PLAYBACK_OUT"  value=""/>
+    <param name="world_path"          value="$(dirname)/../world/$(arg world).world.yaml"/>
+    <param name="models_path"         value="$(dirname)/../models"/>
+    <param name="world_plugins_path"  value="$(dirname)/../world/world_plugins.yaml"/>
+    <param name="update_rate"         value="$(eval 50.0 * float(arg('sim_speed')))"/>
+    <param name="step_size"           value="0.02"/>
+    <param name="show_viz"            value="false"/>
+    <param name="viz_pub_rate"        value="1.0"/>
+    <param name="velocity_iterations" value="6"/>
+    <param name="position_iterations" value="4"/>
+  </node>
+  <node name="flatland_replay" pkg="flatland_plugins" type="base_model_replay.py" output="screen" required="true"
+        args="$(arg drives) $(arg out) --cmd-topic /$(arg robot)/cmd_vel --pose-topic /$(arg robot)/odometry/ground_truth --robot $(arg robot)"/>
+</launch>
