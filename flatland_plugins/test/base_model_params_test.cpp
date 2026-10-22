@@ -55,6 +55,18 @@ TEST(ParamsIo, ParsesAGoodFile) {
             std::string::npos);
 }
 
+TEST(ParamsIo, ProvenanceIsOptional) {
+  YAML::Node d = Good();
+  d.remove("provenance");
+  const auto f = ParseParamFile(d);
+  EXPECT_EQ(f.name, "t");
+  EXPECT_FALSE(f.provenance.IsDefined());
+  const std::string text = flatland_plugins::base_model::Describe(f);
+  EXPECT_NE(text.find("name: t"), std::string::npos);
+  EXPECT_NE(text.find("calibrated_step_s"), std::string::npos);
+  EXPECT_EQ(text.find("provenance"), std::string::npos);
+}
+
 TEST(ParamsIo, InfAndNullCalibratedStep) {
   YAML::Node d = Good();
   d["calibrated_step_s"] = YAML::Node(YAML::NodeType::Null);
@@ -98,6 +110,8 @@ TEST(ParamsIo, RefusesBadStructure) {
   ExpectRefused(d, "tau_lin_s");
   d = Good();
   d["provenance"] = 3;
+  ExpectRefused(d, "provenance");
+  d["provenance"] = YAML::Load("[1, 2]");
   ExpectRefused(d, "provenance");
   ExpectRefused(YAML::Load("[1, 2]"), "mapping");
 }

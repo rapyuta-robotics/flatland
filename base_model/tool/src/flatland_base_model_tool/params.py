@@ -6,7 +6,7 @@ A parameter file is YAML:
     name: example
     calibrated_step_s: 0.02          # or null: valid at any step size
     parameters: {delay_s: ..., ...}  # exactly stepper.PARAM_NAMES; `.inf` means unlimited
-    provenance: {...}                # free-form mapping, logged and published by the plugin
+    provenance: {...}                # optional free-form mapping, logged and published by the plugin; never used to drive
 
 The plugin applies the same checks at load.
 """
@@ -37,7 +37,7 @@ def validate(doc) -> dict:
     unknown = sorted(set(doc) - set(TOP_KEYS))
     if unknown:
         raise ParamFileError(f"unknown top-level key(s): {', '.join(map(str, unknown))}")
-    for key in ("name", "calibrated_step_s", "parameters", "provenance"):
+    for key in ("name", "calibrated_step_s", "parameters"):
         if key not in doc:
             raise ParamFileError(f"missing key {key!r}")
     if not isinstance(doc["name"], str) or not doc["name"]:
@@ -46,7 +46,7 @@ def validate(doc) -> dict:
     if step is not None and (isinstance(step, bool) or not isinstance(step, (int, float))
                              or not math.isfinite(step) or step <= 0):
         raise ParamFileError("calibrated_step_s must be a positive number or null")
-    if not isinstance(doc["provenance"], dict):
+    if "provenance" in doc and not isinstance(doc["provenance"], dict):
         raise ParamFileError("provenance must be a mapping")
     values = doc["parameters"]
     if not isinstance(values, dict):

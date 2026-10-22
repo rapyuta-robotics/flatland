@@ -5,7 +5,8 @@
 //   name: example
 //   calibrated_step_s: 0.02           # or null
 //   parameters: {delay_s: ..., ...}   # exactly the twelve parameters; .inf is
-//   allowed where unlimited provenance: {...}                 # any mapping
+//   allowed where unlimited
+//   provenance: {...}                 # optional, any mapping
 #ifndef FLATLAND_PLUGINS_BASE_MODEL_PARAMS_H
 #define FLATLAND_PLUGINS_BASE_MODEL_PARAMS_H
 
@@ -33,7 +34,7 @@ struct ParamFile {
   std::string name;
   double calibrated_step_s = 0.0;  // 0 when the file is valid at any step size
   Params params;
-  YAML::Node provenance;
+  YAML::Node provenance;  // undefined when the file has no provenance
 };
 
 namespace detail {
@@ -78,8 +79,7 @@ inline ParamFile ParseParamFile(const YAML::Node& doc) {
     const std::string k = kv.first.as<std::string>();
     if (!top.count(k)) throw ParamFileError("unknown top-level key(s): " + k);
   }
-  for (const char* k :
-       {"name", "calibrated_step_s", "parameters", "provenance"}) {
+  for (const char* k : {"name", "calibrated_step_s", "parameters"}) {
     if (!doc[k].IsDefined())
       throw ParamFileError(std::string("missing key '") + k + "'");
   }
@@ -97,9 +97,11 @@ inline ParamFile ParseParamFile(const YAML::Node& doc) {
           "calibrated_step_s must be a positive number or null");
     out.calibrated_step_s = s;
   }
-  if (!doc["provenance"].IsMap())
-    throw ParamFileError("provenance must be a mapping");
-  out.provenance = doc["provenance"];
+  if (doc["provenance"].IsDefined()) {
+    if (!doc["provenance"].IsMap())
+      throw ParamFileError("provenance must be a mapping");
+    out.provenance = doc["provenance"];
+  }
   const YAML::Node values = doc["parameters"];
   if (!values.IsMap()) throw ParamFileError("parameters must be a mapping");
 
@@ -153,7 +155,8 @@ inline std::string Describe(const ParamFile& f) {
   e << YAML::BeginMap;
   e << YAML::Key << "name" << YAML::Value << f.name;
   e << YAML::Key << "calibrated_step_s" << YAML::Value << f.calibrated_step_s;
-  e << YAML::Key << "provenance" << YAML::Value << f.provenance;
+  if (f.provenance.IsDefined())
+    e << YAML::Key << "provenance" << YAML::Value << f.provenance;
   e << YAML::EndMap;
   return e.c_str();
 }

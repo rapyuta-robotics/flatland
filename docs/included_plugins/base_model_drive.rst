@@ -16,7 +16,9 @@ step, so its twist is the velocity of the body, as on a real robot (``DiffDrive`
 
 The plugin refuses to load, with an error message, on a missing parameter file, an unknown ``schema_version``, a
 value out of range, or a ``linear_dynamics`` or ``angular_dynamics`` block. It warns once when the step size
-differs by more than 1 % from the step the file was calibrated for. Parameter files and the calibration tool are in
+differs by more than 1 % from the step the file was calibrated for. A ``provenance`` key is optional: a free-form
+mapping that is logged and published when present, and never used to drive. A ``provenance`` that is not a mapping is
+refused. Parameter files and the calibration tool are in
 ``base_model/``; see ``base_model/README.md``.
 
 .. code-block:: yaml
@@ -39,5 +41,5 @@ differs by more than 1 % from the step the file was calibrated for. Parameter fi
       # all other keys of DiffDrive are accepted with the same meaning: odom_frame_id, twist_sub, odom_pub,
       # ground_truth_pub, twist_pub, enable_*_pub, pub_rate, odom_*_noise, odom_*_covariance
 
-      # optional, defaults to base_model/provenance, latched topic with the parameter file name and its provenance
+      # optional, defaults to base_model/provenance, latched topic with the parameter file name and its provenance, if the file has one
       provenance_pub: base_model/provenance

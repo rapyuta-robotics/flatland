@@ -47,9 +47,15 @@ def test_rejects(doc, text):
 
 def test_missing_top_key():
     doc = good_doc()
-    del doc["provenance"]
-    with pytest.raises(params.ParamFileError, match="provenance"):
+    del doc["name"]
+    with pytest.raises(params.ParamFileError, match="name"):
         params.validate(doc)
+
+
+def test_provenance_is_optional():
+    doc = good_doc()
+    del doc["provenance"]
+    assert params.validate(doc) is doc
 
 
 def test_invalid_yaml(tmp_path):

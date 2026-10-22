@@ -66,7 +66,7 @@ The plugin **refuses to load** with a clear error on a missing file, a bad schem
 
 ## Parameter files
 
-A file is YAML with `schema_version`, `name`, `calibrated_step_s`, the twelve `parameters` (`.inf` means unlimited) and a free-form `provenance` mapping. The plugin logs the provenance at load and publishes it on a latched topic. `identity` applies the command unchanged and keeps the rigid-body motion and the post-step odometry twist. `example` has made-up round values and shows the format.
+A file is YAML with `schema_version`, `name`, `calibrated_step_s`, the twelve `parameters` (`.inf` means unlimited) and an optional free-form `provenance` mapping. When present, the plugin logs the provenance at load and publishes it on a latched topic; it is never used to drive. A non-mapping `provenance` is refused. `fbm fit` writes a provenance block as an optional record. `identity` applies the command unchanged and keeps the rigid-body motion and the post-step odometry twist. `example` has made-up round values and shows the format.
 
 Check files with `uv run fbm check-params params/*.yaml`. There are no defaults for the parameters of a robot: a file names every one of them.
 
