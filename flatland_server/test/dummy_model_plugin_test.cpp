@@ -44,6 +44,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <flatland_server/debug_visualization.h>
 #include <flatland_server/dummy_model_plugin.h>
 #include <flatland_server/model.h>
 #include <flatland_server/model_plugin.h>
@@ -86,5 +87,9 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  const int result = RUN_ALL_TESTS();
+  // rmw_zenoh aborts if ROS entities are still alive at process exit
+  flatland_server::DebugVisualization::Release();
+  rclcpp::shutdown();
+  return result;
 }

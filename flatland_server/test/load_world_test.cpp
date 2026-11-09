@@ -1003,5 +1003,9 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  const int result = RUN_ALL_TESTS();
+  // rmw_zenoh aborts if ROS entities are still alive at process exit
+  flatland_server::DebugVisualization::Release();
+  rclcpp::shutdown();
+  return result;
 }
