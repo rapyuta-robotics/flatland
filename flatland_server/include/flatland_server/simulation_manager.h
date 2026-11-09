@@ -99,6 +99,7 @@ public:
 
 private:
   rclcpp::WallRate * rate_;
+  rclcpp::executors::SingleThreadedExecutor executor_;  ///< Spins node_ once per sim step
 };
 }  // namespace flatland_server
 #endif  // FLATLAND_SERVER_SIMULATION_MANAGER_H

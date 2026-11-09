@@ -70,7 +70,12 @@ SimulationManager::SimulationManager(
   show_viz_(show_viz),
   viz_pub_rate_(viz_pub_rate),
   world_yaml_file_(world_yaml_file),
-  rate_(new rclcpp::WallRate(update_rate))
+  rate_(new rclcpp::WallRate(update_rate)),
+  executor_([&node] {
+    rclcpp::ExecutorOptions options;
+    options.context = node->get_node_base_interface()->get_context();
+    return options;
+  }())
 {
   RCLCPP_INFO(
     rclcpp::get_logger("SimMan"),
@@ -78,6 +83,8 @@ SimulationManager::SimulationManager(
     "step_size(%f) show_viz(%s), viz_pub_rate(%f)",
     world_yaml_file_.c_str(), update_rate_, step_size_, show_viz_ ? "true" : "false",
     viz_pub_rate_);
+  // one executor for the whole run: rclcpp::spin_some() builds a new one per step
+  executor_.add_node(node_);
 }
 
 SimulationManager::~SimulationManager() { delete rate_; }
@@ -135,7 +142,13 @@ void SimulationManager::Main()
       DebugVisualization::Get(node_)->Publish(timekeeper);  // publish debug visualization
     }
 
-    rclcpp::spin_some(node_);
+    try {
+      executor_.spin_some();
+    } catch (const rclcpp::exceptions::RCLError &) {
+      // SIGINT may shut the context down between the rclcpp::ok() check and the spin
+      if (rclcpp::ok()) throw;
+      break;
+    }
     double cycle_time = wall_clock.now().seconds() - start_time;
     rate_->sleep();
 
