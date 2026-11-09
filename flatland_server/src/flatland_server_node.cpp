@@ -105,6 +105,8 @@ public:
     simulation_manager_->Main();
 
     RCLCPP_INFO(this->get_logger(), "Returned from simulation manager main2");
+    // the manager holds this node: drop it so that both are destroyed before rclcpp::shutdown()
+    simulation_manager_.reset();
   }
 
   // TODO: Allow updates to step size, update rate etc. with new ros2 dynamic
@@ -130,6 +132,7 @@ int main(int argc, char ** argv)
   flatland_server->Run();
   // rmw_zenoh aborts if ROS entities are still alive at process exit
   flatland_server::DebugVisualization::Release();
+  flatland_server.reset();
   rclcpp::shutdown();
   return 0;
 }
