@@ -82,6 +82,11 @@ public:
   static std::shared_ptr<DebugVisualization> Get(rclcpp::Node::SharedPtr node);
 
   /**
+   * @brief Release the singleton object so that it does not outlive rclcpp::shutdown()
+   */
+  static void Release();
+
+  /**
    * @brief Publish all marker array topics_ that need publishing
    * @param[in] timekeeper The time object to use for header timestamps
    */

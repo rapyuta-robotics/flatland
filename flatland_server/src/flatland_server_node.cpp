@@ -48,6 +48,7 @@
 
 #include <string>
 
+#include "flatland_server/debug_visualization.h"
 #include "flatland_server/simulation_manager.h"
 #include "rclcpp/rclcpp.hpp"
 
@@ -127,6 +128,8 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   auto flatland_server = std::make_shared<FlatlandServerNode>();
   flatland_server->Run();
+  // rmw_zenoh aborts if ROS entities are still alive at process exit
+  flatland_server::DebugVisualization::Release();
   rclcpp::shutdown();
   return 0;
 }

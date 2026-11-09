@@ -59,6 +59,11 @@
 namespace flatland_server
 {
 
+namespace
+{
+std::shared_ptr<DebugVisualization> instance;  ///< Singleton returned by DebugVisualization::Get()
+}  // namespace
+
 DebugVisualization::DebugVisualization(rclcpp::Node::SharedPtr node) : node_(node)
 {
   topic_list_publisher_ = node_->create_publisher<flatland_msgs::msg::DebugTopicList>("topics", 1);
@@ -66,13 +71,14 @@ DebugVisualization::DebugVisualization(rclcpp::Node::SharedPtr node) : node_(nod
 
 std::shared_ptr<DebugVisualization> DebugVisualization::Get(rclcpp::Node::SharedPtr node)
 {
-  static std::shared_ptr<DebugVisualization> instance;
   // todo: fix this? How should singletons work with shared pointers?
   if (!instance) {
     instance = std::make_shared<DebugVisualization>(node);
   }
   return instance;
 }
+
+void DebugVisualization::Release() { instance.reset(); }
 
 void DebugVisualization::JointToMarkers(
   visualization_msgs::msg::MarkerArray & markers, b2Joint * joint, float r, float g, float b,
