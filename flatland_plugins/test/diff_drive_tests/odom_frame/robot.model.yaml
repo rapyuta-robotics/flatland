@@ -1,0 +1,18 @@
+bodies:
+  - name: base_link
+    pose: [0, 0, 0]
+    type: dynamic
+    color: [1, 1, 1, 0.5]
+    footprints:
+      - type: circle
+        density: 1
+        center: [0, 0]
+        radius: 0.2
+        sensor: true
+
+plugins:
+  - type: DiffDrive
+    name: diff_drive
+    body: base_link
+    odom_pub: odom
+    enable_tf_pub: false

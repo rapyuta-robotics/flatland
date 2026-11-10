@@ -298,7 +298,9 @@ void TricycleDrive::BeforePhysicsStep(const Timekeeper & timekeeper)
   if (publish) {
     // 1. get the state of the body and publish the data,
     //    before the tricycle physics get updated
-    b2Vec2 linear_vel_local = b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0));
+    b2Vec2 linear_vel_world = b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0));
+    // odometry twist is expressed in the child (body) frame
+    b2Vec2 linear_vel_local = b2body->GetLocalVector(linear_vel_world);
     float angular_vel = b2body->GetAngularVelocity();
 
     ground_truth_msg_.header.stamp = timekeeper.GetSimTime();

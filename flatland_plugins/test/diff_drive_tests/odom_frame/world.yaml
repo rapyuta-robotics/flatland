@@ -1,0 +1,9 @@
+properties: {}
+layers:
+  - name: "layer_1"
+    map: "../../bumper_tests/collision_test/map_1.yaml"
+    color: [0, 1, 0, 1]
+models:
+  - name: robot1
+    pose: [0, 0, 1.5707963]
+    model: robot.model.yaml

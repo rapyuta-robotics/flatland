@@ -191,7 +191,9 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper & timekeeper)
 
   if (publish) {
     // get the state of the body and publish the data
-    b2Vec2 linear_vel_local = b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0));
+    b2Vec2 linear_vel_world = b2body->GetLinearVelocityFromLocalPoint(b2Vec2(0, 0));
+    // odometry twist is expressed in the child (body) frame
+    b2Vec2 linear_vel_local = b2body->GetLocalVector(linear_vel_world);
     float angular_vel = b2body->GetAngularVelocity();
 
     ground_truth_msg_.header.stamp = timekeeper.GetSimTime();
@@ -238,7 +240,7 @@ void DiffDrive::BeforePhysicsStep(const Timekeeper & timekeeper)
 
       // Forward velocity in twist.linear.x
       twist_pub_msg.twist.linear.x =
-        cos(angle) * linear_vel_local.x + sin(angle) * linear_vel_local.y + SampleNoise(3);
+        cos(angle) * linear_vel_world.x + sin(angle) * linear_vel_world.y + SampleNoise(3);
 
       // Angular velocity in twist.angular.z
       twist_pub_msg.twist.angular.z = angular_vel + SampleNoise(5);

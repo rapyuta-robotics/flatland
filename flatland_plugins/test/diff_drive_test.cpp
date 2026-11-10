@@ -45,8 +45,14 @@
  */
 
 #include <flatland_server/model_plugin.h>
+#include <flatland_server/timekeeper.h>
+#include <flatland_server/world.h>
 #include <gtest/gtest.h>
 
+#include <boost/filesystem.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <memory>
+#include <nav_msgs/msg/odometry.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -62,6 +68,40 @@ TEST(DiffDrivePluginTest, load_test)
   } catch (pluginlib::PluginlibException & e) {
     FAIL() << "Failed to load diff drive Drive plugin. " << e.what();
   }
+}
+
+/**
+ * Odometry twist is expressed in the body frame: driving forward with the robot facing +y gives linear.x > 0, y = 0
+ */
+TEST(DiffDrivePluginTest, odom_twist_in_body_frame)
+{
+  auto node = rclcpp::Node::make_shared("test_diff_drive_odom");
+  flatland_server::Timekeeper timekeeper(node);
+  timekeeper.SetMaxStepSize(0.01);
+  const auto world_yaml =
+    boost::filesystem::path(__FILE__).parent_path() / "diff_drive_tests/odom_frame/world.yaml";
+  std::unique_ptr<flatland_server::World> world(
+    flatland_server::World::MakeWorld(node, world_yaml.string()));
+
+  nav_msgs::msg::Odometry::SharedPtr odom;
+  auto sub = node->create_subscription<nav_msgs::msg::Odometry>(
+    "odom", 10, [&odom](nav_msgs::msg::Odometry::SharedPtr msg) { odom = msg; });
+  auto pub = node->create_publisher<geometry_msgs::msg::TwistStamped>("cmd_vel", 1);
+  geometry_msgs::msg::TwistStamped cmd;
+  cmd.twist.linear.x = 0.5;
+
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(node);
+  for (int i = 0; i < 100; ++i) {
+    pub->publish(cmd);
+    executor.spin_some();
+    world->Update(timekeeper);
+  }
+  executor.spin_some();
+
+  ASSERT_NE(odom, nullptr);
+  EXPECT_NEAR(odom->twist.twist.linear.x, 0.5, 1e-3);
+  EXPECT_NEAR(odom->twist.twist.linear.y, 0.0, 1e-3);
 }
 
 // Run all the tests that were declared with TEST()
